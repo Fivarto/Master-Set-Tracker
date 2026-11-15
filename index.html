@@ -1,0 +1,414 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Meus Master Sets</title>
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#0f8f7e">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Master Sets">
+<link rel="icon" href="icon-192.png">
+<link rel="apple-touch-icon" href="icon-192.png">
+<style>
+:root{--bg:#eef0f3;--panel:#fff;--ink:#1b1f27;--mute:#6b7280;--line:#d9dde3;--acc:#0f8f7e;--accink:#fff;--warn:#c2410c}
+@media (prefers-color-scheme:dark){:root:not([data-theme=light]){--bg:#13161b;--panel:#1c2027;--ink:#e8eaee;--mute:#98a1ae;--line:#2c323c;--acc:#3ccab5;--accink:#08201c;--warn:#fb923c}}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.45 "Trebuchet MS",Verdana,sans-serif}
+header{display:flex;gap:12px;align-items:center;flex-wrap:wrap;padding:14px 18px;background:var(--panel);border-bottom:1px solid var(--line);position:sticky;top:0;z-index:5}
+h1{font-size:18px;margin:0 8px 0 0}
+select,input,button{font:inherit;color:var(--ink);background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:7px 10px}
+button{cursor:pointer}
+button.p{background:var(--acc);color:var(--accink);border-color:var(--acc);font-weight:bold}
+button:focus-visible,input:focus-visible,select:focus-visible,.card:focus-visible{outline:2px solid var(--acc);outline-offset:2px}
+.sp{flex:1}
+main{padding:18px;max-width:1300px;margin:0 auto}
+.bar{display:flex;gap:14px;align-items:center;flex-wrap:wrap;margin-bottom:14px}
+.prog{flex:1;min-width:200px}
+.track{height:10px;background:var(--line);border-radius:6px;overflow:hidden;margin-top:4px}
+.fill{height:100%;background:var(--acc);width:0;transition:width .4s}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:14px}
+.card{position:relative;background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:6px;cursor:pointer;text-align:center}
+.card .im{aspect-ratio:245/342;border-radius:6px;overflow:hidden;background:var(--line);display:flex;align-items:center;justify-content:center;font-size:12px;color:var(--mute);padding:6px}
+.card img{width:100%;height:100%;object-fit:cover;display:block;filter:grayscale(1) opacity(.5);transition:filter .35s}
+.card.own img{filter:none}
+.card.own{border-color:var(--acc);box-shadow:0 0 0 2px var(--acc)}
+.card small{display:block;color:var(--mute);font-size:11px;margin-top:4px;line-height:1.25}
+.card b{display:block;font-size:13px;margin-top:5px}
+.card .x{position:absolute;z-index:2;top:8px;right:8px;padding:0 7px;line-height:22px;border-radius:50%;opacity:0}
+.card:hover .x,.card:focus-within .x{opacity:1}
+.empty{padding:50px 10px;text-align:center;color:var(--mute)}
+dialog{background:var(--panel);color:var(--ink);border:1px solid var(--line);border-radius:12px;padding:18px;width:min(720px,94vw);max-height:90vh}
+dialog::backdrop{background:rgba(0,0,0,.5)}
+.row{display:flex;gap:8px;flex-wrap:wrap;margin:8px 0}
+.row input{flex:1;min-width:140px}
+.res{display:grid;grid-template-columns:repeat(auto-fill,minmax(96px,1fr));gap:8px;margin:10px 0;max-height:46vh;overflow:auto}
+.res label{font-size:11px;text-align:center;cursor:pointer;border:2px solid transparent;border-radius:8px;padding:3px}
+.res label.on{border-color:var(--acc)}
+.res img{width:100%;border-radius:4px;display:block}
+.res input{display:none}
+.tabs{display:flex;gap:6px}
+.tabs button.on{background:var(--acc);color:var(--accink);border-color:var(--acc)}
+.msg{color:var(--mute);font-size:13px;min-height:18px}
+.msg.err{color:var(--warn)}
+.card .x.v{left:8px;right:auto;font-size:13px}
+@media (hover:none){.card .x{opacity:.85}}
+.meta{color:var(--acc);font-weight:bold}
+.dg{display:grid;grid-template-columns:minmax(0,260px) 1fr;gap:18px}
+@media(max-width:600px){.dg{grid-template-columns:1fr}}
+.dimg img{width:100%;border-radius:10px;display:block;cursor:zoom-in}
+.dimg button{width:100%;margin-top:8px}
+.dform{display:flex;flex-direction:column;gap:10px}
+.dform h2{margin:0;font-size:18px}
+.dform label{display:flex;flex-direction:column;gap:3px;font-size:13px;color:var(--mute)}
+.dform label.chk{flex-direction:row;align-items:center;gap:8px;color:var(--ink);font-size:15px}
+.dform label.chk input{width:18px;height:18px}
+#lb{position:fixed;inset:0;background:#000;z-index:50;display:flex;align-items:center;justify-content:center}
+#lb[hidden]{display:none}
+#lb img{max-width:100%;max-height:100vh;object-fit:contain}
+#lb button{position:absolute;background:rgba(255,255,255,.18);color:#fff;border:0;font-size:28px;width:48px;height:48px;border-radius:50%;padding:0}
+#lbX{top:14px;right:14px}#lbPrev{left:14px;top:50%}#lbNext{right:14px;top:50%}
+#lbCap{position:absolute;bottom:14px;left:0;right:0;text-align:center;color:#fff;font-size:14px;text-shadow:0 1px 4px #000}
+.card .x.h{left:50%;right:auto;transform:translateX(-50%);opacity:.9;cursor:grab;touch-action:none;user-select:none;-webkit-user-select:none;padding:0 10px}
+.card.drag{opacity:.35}
+.card.ghost{position:fixed;z-index:60;pointer-events:none;opacity:.92;box-shadow:0 10px 28px rgba(0,0,0,.45);transform:rotate(3deg)}
+.card.dropB{box-shadow:-6px 0 0 0 var(--acc)!important}
+.card.dropA{box-shadow:6px 0 0 0 var(--acc)!important}
+[hidden]{display:none!important}
+#multi{display:flex;flex-direction:column;gap:12px}
+.setbox{background:var(--panel);border:1px solid var(--line);border-radius:12px;overflow:hidden}
+.sethead{display:flex;align-items:center;gap:10px;flex-wrap:wrap;padding:8px 10px}
+.sethead .tog{flex:1;min-width:160px;text-align:left;font-weight:bold;font-size:16px;border:0;background:transparent}
+.sethead .sinfo{color:var(--mute);font-size:13px}
+.sethead .track{width:110px;margin:0}
+.setbox>.grid{padding:4px 12px 14px}
+.chev{display:inline-block;width:1.1em;color:var(--acc)}
+.grid .empty{grid-column:1/-1;padding:24px 10px}
+</style>
+</head>
+<body>
+<header>
+  <h1>Master Sets</h1>
+  <select id="viewSel" aria-label="Tipo de visualização"><option value="one">Visualização: set único</option><option value="multi">Visualização: vários sets</option></select>
+  <select id="setSel" aria-label="Master set"></select>
+  <button id="newSet">Novo master set</button>
+  <button id="delSet">Excluir set</button>
+  <button id="expAll">Expandir todos</button><button id="colAll">Recolher todos</button>
+  <span class="sp"></span>
+  <button class="p" id="addBtn">Adicionar cartas</button>
+  <button id="expBtn">Exportar backup</button>
+  <button id="impBtn">Importar</button>
+  <input type="file" id="impFile" accept=".json" hidden>
+</header>
+<main>
+  <div class="bar">
+    <div class="prog"><span id="progTxt"></span><div class="track"><div class="fill" id="fill"></div></div></div>
+    <select id="filter" aria-label="Filtro"><option value="all">Todas</option><option value="miss">Faltando</option><option value="own">Já tenho</option></select>
+    <select id="sort" aria-label="Ordenação"><option value="date">Ordem: lançamento</option><option value="az">Ordem: A–Z</option><option value="za">Ordem: Z–A</option><option value="manual">Ordem: manual (arrastar)</option></select>
+    <span class="msg" id="hint"></span>
+  </div>
+  <div id="area"><div class="grid" id="grid"></div><div id="multi"></div></div>
+</main>
+
+<dialog id="dlg">
+  <div class="row"><span class="msg">Adicionar ao set:</span><select id="tgt" aria-label="Set de destino"></select></div>
+  <div class="tabs">
+    <button id="tApi" class="on">Buscar na internet</button>
+    <button id="tMan">Cadastrar manualmente</button>
+  </div>
+  <div id="pApi">
+    <div class="row">
+      <select id="mode"><option value="artist">Ilustrador</option><option value="name">Nome da carta</option></select>
+      <input id="q" placeholder="Ex.: Mitsuhiro Arita" aria-label="Busca">
+      <button class="p" id="go">Buscar</button>
+    </div>
+    <div class="msg" id="apiMsg"></div>
+    <div class="res" id="res"></div>
+    <div class="row">
+      <button id="selAll">Marcar todas</button>
+      <button id="more" hidden>Carregar mais</button>
+      <span class="sp"></span>
+      <button class="p" id="addSel">Adicionar selecionadas</button>
+    </div>
+  </div>
+  <div id="pMan" hidden>
+    <div class="row"><input id="mName" placeholder="Nome da carta"><input id="mSet" placeholder="Coleção (opcional)"><input id="mNum" placeholder="Número (opcional)"></div>
+    <div class="row"><input id="mImg" placeholder="URL da imagem (opcional)"></div>
+    <div class="msg">Sem URL, o app tenta achar a imagem pelo nome e número na internet.</div>
+    <div class="row"><span class="sp"></span><button class="p" id="mAdd">Adicionar carta</button></div>
+  </div>
+  <div class="row"><span class="sp"></span><button id="close">Fechar</button></div>
+</dialog>
+
+<dialog id="det">
+  <div class="dg">
+    <div class="dimg"><img id="dImg" alt=""><button id="dFull">Tela cheia</button></div>
+    <div class="dform">
+      <h2 id="dName"></h2><div class="msg" id="dSub"></div>
+      <label class="chk"><input type="checkbox" id="dOwn"> Já tenho esta carta</label>
+      <label>Condição<select id="dCond"></select></label>
+      <label>Versão<select id="dVer"></select></label>
+      <label>Preço pago (R$)<input id="dPrice" type="number" min="0" step="0.01" inputmode="decimal"></label>
+      <label>URL da imagem<input id="dUrl" placeholder="https://..."></label>
+      <div class="row"><span class="sp"></span><button class="p" id="dClose">Fechar</button></div>
+    </div>
+  </div>
+</dialog>
+<div id="lb" hidden>
+  <button id="lbPrev" aria-label="Anterior">‹</button><img id="lbImg" alt=""><button id="lbNext" aria-label="Próxima">›</button>
+  <button id="lbX" aria-label="Fechar">×</button><div id="lbCap"></div>
+</div>
+<script>
+const KEY='pokemon-master-sets-v1';
+let S;
+try{S=JSON.parse(localStorage.getItem(KEY))}catch(e){}
+if(!S||!S.sets)S={sets:[],cur:null};
+const $=id=>document.getElementById(id);
+const save=()=>{try{localStorage.setItem(KEY,JSON.stringify(S))}catch(e){alert('Não foi possível salvar no navegador.')}};
+const cur=()=>S.sets.find(s=>s.id===S.cur);
+const uid=()=>Math.random().toString(36).slice(2,10);
+const esc=t=>String(t==null?'':t).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+
+function cardHtml(c,canDrag){
+  return `<div class="card ${c.owned?'own':''}" tabindex="0" role="button" aria-pressed="${!!c.owned}" data-id="${c.id}">
+    ${canDrag?`<button class="x h" data-h aria-label="Arrastar para reordenar" title="Arraste para reordenar">⠿</button>`:''}<button class="x v" data-open="${c.id}" aria-label="Detalhes e tela cheia" title="Detalhes">⤢</button><button class="x" data-del="${c.id}" aria-label="Remover carta" title="Remover">×</button>
+    <div class="im">${c.img?`<img loading="lazy" src="${esc(c.img)}" alt="${esc(c.name)}" onerror="this.parentNode.textContent='Sem imagem'">`:'Sem imagem'}</div>
+    <b>${esc(c.name)}</b><small>${esc(c.set||'')} ${c.num?'#'+esc(c.num):''}</small>${c.owned?`<small class="meta">${esc([c.cond&&c.cond.replace(/.*\((.*)\)/,'$1'),c.ver,c.price>0&&money(c.price)].filter(Boolean).join(' · '))}</small>`:''}</div>`;
+}
+function stats(cards){
+  const own=cards.filter(c=>c.owned).length,tot=cards.length;
+  return {own,tot,pct:tot?own/tot*100:0,spent:cards.reduce((a,c)=>a+(c.owned&&c.price>0?c.price:0),0)};
+}
+function findCard(id){for(const s of S.sets){const c=s.cards.find(x=>x.id===id);if(c)return {s,c}}return null}
+function render(){
+  const multi=S.view==='multi';
+  $('viewSel').value=multi?'multi':'one';
+  $('setSel').hidden=multi;$('delSet').hidden=multi;$('expAll').hidden=!multi;$('colAll').hidden=!multi;
+  $('setSel').innerHTML=S.sets.map(s=>`<option value="${s.id}" ${s.id===S.cur?'selected':''}>${esc(s.name)}</option>`).join('')||'<option>Nenhum set</option>';
+  const g=$('grid'),m=$('multi');g.hidden=multi;m.hidden=!multi;
+  const f=$('filter').value,canDrag=$('sort').value==='manual'&&f==='all';
+  $('hint').textContent=$('sort').value==='manual'?(canDrag?'Arraste pelo botão ⠿ para reordenar.':'Para reordenar, use o filtro "Todas".'):'';
+  if(!S.sets.length){(multi?m:g).innerHTML='<div class="empty">Crie seu primeiro master set (por exemplo, o nome de um ilustrador).</div>';$('progTxt').textContent='';$('fill').style.width='0';return}
+  if(multi){
+    const t=stats(S.sets.flatMap(x=>x.cards));
+    $('progTxt').textContent=`${t.own} de ${t.tot} cartas em ${S.sets.length} sets (${Math.round(t.pct)}%)`+(t.spent?` · Investido: ${money(t.spent)}`:'');
+    $('fill').style.width=t.pct+'%';
+    m.innerHTML=S.sets.map(x=>{
+      const st=stats(x.cards),open=!!x.open,list=open?visible(x):[];
+      return `<section class="setbox" data-sid="${x.id}"><div class="sethead">
+        <button class="tog" data-tog="${x.id}" aria-expanded="${open}"><span class="chev">${open?'▾':'▸'}</span>${esc(x.name)}</button>
+        <span class="sinfo">${st.own}/${st.tot} (${Math.round(st.pct)}%)${st.spent?' · '+money(st.spent):''}</span>
+        <div class="track"><div class="fill" style="width:${st.pct}%"></div></div>
+        <button data-add="${x.id}">+ Cartas</button><button data-dels="${x.id}" aria-label="Excluir set" title="Excluir set">×</button></div>
+        <div class="grid" ${open?'':'hidden'}>${open?(list.length?list.map(c=>cardHtml(c,canDrag)).join(''):`<div class="empty">${st.tot?'Nenhuma carta neste filtro.':'Nenhuma carta ainda. Clique em “+ Cartas”.'}</div>`):''}</div></section>`;
+    }).join('');
+    return;
+  }
+  const x=cur(),st=stats(x.cards),list=visible(x);
+  $('progTxt').textContent=`${st.own} de ${st.tot} cartas (${Math.round(st.pct)}%)`+(st.spent?` · Investido: ${money(st.spent)}`:'');
+  $('fill').style.width=st.pct+'%';
+  g.innerHTML=list.length?list.map(c=>cardHtml(c,canDrag)).join(''):`<div class="empty">${st.tot?'Nenhuma carta neste filtro.':'Nenhuma carta ainda. Clique em “Adicionar cartas”.'}</div>`;
+}
+
+$('area').addEventListener('click',e=>{
+  if(e.target.closest('[data-h]'))return;
+  const tg=e.target.closest('[data-tog]');
+  if(tg){const x=S.sets.find(y=>y.id===tg.dataset.tog);x.open=!x.open;S.cur=x.id;save();render();return}
+  const ad=e.target.closest('[data-add]');
+  if(ad){S.cur=ad.dataset.add;save();render();openAdd();return}
+  const ds=e.target.closest('[data-dels]');
+  if(ds){const x=S.sets.find(y=>y.id===ds.dataset.dels);if(confirm(`Excluir o set "${x.name}" e todas as suas cartas?`)){S.sets=S.sets.filter(y=>y!==x);if(S.cur===x.id)S.cur=S.sets[0]?S.sets[0].id:null;save();render()}return}
+  const o=e.target.closest('[data-open]');if(o){openDet(o.dataset.open);return}
+  const d=e.target.closest('[data-del]');
+  if(d){const r=findCard(d.dataset.del);if(r&&confirm('Remover esta carta do set?')){r.s.cards=r.s.cards.filter(c=>c!==r.c);save();render()}return}
+  const el=e.target.closest('.card');if(!el)return;
+  const r=findCard(el.dataset.id);if(r){r.c.owned=!r.c.owned;save();render()}
+});
+$('area').addEventListener('keydown',e=>{if((e.key==='Enter'||e.key===' ')&&e.target.classList.contains('card')){e.preventDefault();e.target.click()}});
+$('viewSel').onchange=e=>{S.view=e.target.value;save();render()};
+$('expAll').onclick=()=>{S.sets.forEach(x=>x.open=true);save();render()};
+$('colAll').onclick=()=>{S.sets.forEach(x=>x.open=false);save();render()};
+$('setSel').onchange=e=>{S.cur=e.target.value;save();render()};
+$('filter').onchange=render;$('sort').onchange=render;
+$('newSet').onclick=()=>{const n=prompt('Nome do master set (ex.: Mitsuhiro Arita):');if(!n||!n.trim())return;const s={id:uid(),name:n.trim(),cards:[]};S.sets.push(s);S.cur=s.id;save();render()};
+$('delSet').onclick=()=>{const s=cur();if(s&&confirm(`Excluir o set "${s.name}" e todas as suas cartas?`)){S.sets=S.sets.filter(x=>x!==s);S.cur=S.sets[0]?S.sets[0].id:null;save();render()}};
+
+/* Backup */
+$('expBtn').onclick=()=>{const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([JSON.stringify(S,null,1)],{type:'application/json'}));a.download='master-sets-backup.json';a.click()};
+$('impBtn').onclick=()=>$('impFile').click();
+$('impFile').onchange=e=>{const f=e.target.files[0];if(!f)return;const r=new FileReader();r.onload=()=>{try{const d=JSON.parse(r.result);if(!d.sets)throw 0;if(confirm('Isso substitui os dados atuais. Continuar?')){S=d;if(!cur())S.cur=S.sets[0]?S.sets[0].id:null;save();render()}}catch(x){alert('Arquivo de backup inválido.')}};r.readAsText(f);e.target.value=''};
+
+/* Diálogo */
+const dlg=$('dlg');
+let results=[],picked=new Set(),page=1,lastQ='';
+function openAdd(){
+  if(!cur()){alert('Crie um master set primeiro.');return}
+  $('tgt').innerHTML=S.sets.map(x=>`<option value="${x.id}">${esc(x.name)}</option>`).join('');$('tgt').value=S.cur;
+  dlg.showModal();
+}
+$('addBtn').onclick=openAdd;
+$('tgt').onchange=e=>{S.cur=e.target.value;save();render();drawRes()};
+$('close').onclick=()=>dlg.close();
+function tab(api){$('pApi').hidden=!api;$('pMan').hidden=api;$('tApi').classList.toggle('on',api);$('tMan').classList.toggle('on',!api)}
+$('tApi').onclick=()=>tab(true);$('tMan').onclick=()=>tab(false);
+$('mode').onchange=()=>$('q').placeholder=$('mode').value==='artist'?'Ex.: Mitsuhiro Arita':'Ex.: Pikachu';
+
+async function search(more){
+  const v=$('q').value.trim();if(!v)return;
+  if(!more){results=[];picked=new Set();page=1;lastQ=$('mode').value==='artist'?`artist:"${v}"`:`name:"${v}"`}
+  else page++;
+  const m=$('apiMsg');m.className='msg';m.textContent='Buscando…';
+  try{
+    const url=`https://api.pokemontcg.io/v2/cards?q=${encodeURIComponent(lastQ)}&pageSize=100&page=${page}&orderBy=set.releaseDate&select=id,name,number,images,set,artist`;
+    const r=await fetch(url);if(!r.ok)throw new Error('HTTP '+r.status);
+    const j=await r.json();
+    results=results.concat(j.data.map(c=>({key:c.id,name:c.name,set:c.set.name,num:c.number,img:c.images.small,big:c.images.large,date:c.set.releaseDate})));
+    m.textContent=`${results.length} de ${j.totalCount} cartas encontradas. Clique nas cartas para selecionar.`;
+    $('more').hidden=results.length>=j.totalCount;
+    drawRes();
+  }catch(e){m.className='msg err';m.textContent='Falha na busca ('+e.message+'). Verifique a internet e tente de novo; a API às vezes demora.'}
+}
+function drawRes(){
+  const s=cur(),have=new Set(s.cards.map(c=>c.key));
+  $('res').innerHTML=results.map(c=>`<label class="${picked.has(c.key)?'on':''}" title="${esc(c.name)}"><input type="checkbox" data-k="${c.key}" ${picked.has(c.key)?'checked':''}><img loading="lazy" src="${esc(c.img)}" alt="${esc(c.name)}">${esc(c.name)}<br>${esc(c.set)} #${esc(c.num)}${have.has(c.key)?'<br><b>(já no set)</b>':''}</label>`).join('');
+}
+$('res').addEventListener('change',e=>{const k=e.target.dataset.k;e.target.checked?picked.add(k):picked.delete(k);e.target.parentNode.classList.toggle('on',e.target.checked)});
+$('go').onclick=()=>search(false);
+$('q').onkeydown=e=>{if(e.key==='Enter')search(false)};
+$('more').onclick=()=>search(true);
+$('selAll').onclick=()=>{const all=picked.size===results.length;picked=new Set(all?[]:results.map(c=>c.key));drawRes()};
+$('addSel').onclick=()=>{
+  const s=cur(),have=new Set(s.cards.map(c=>c.key));let n=0;
+  results.filter(c=>picked.has(c.key)&&!have.has(c.key)).forEach(c=>{s.cards.push({id:uid(),key:c.key,name:c.name,set:c.set,num:c.num,img:c.img,big:c.big,date:c.date,owned:false});n++});
+  save();render();picked=new Set();drawRes();$('apiMsg').textContent=`${n} carta(s) adicionada(s).`;
+};
+
+/* Manual */
+$('mAdd').onclick=async()=>{
+  const name=$('mName').value.trim();if(!name){alert('Informe o nome da carta.');return}
+  const set=$('mSet').value.trim(),num=$('mNum').value.trim();let img=$('mImg').value.trim();
+  if(!img){
+    try{
+      let q=`name:"${name}"`+(num?` number:"${num}"`:'');
+      const j=await (await fetch(`https://api.pokemontcg.io/v2/cards?q=${encodeURIComponent(q)}&pageSize=1&select=images`)).json();
+      if(j.data&&j.data[0])img=j.data[0].images.small;
+    }catch(e){}
+  }
+  cur().cards.push({id:uid(),key:'m'+uid(),name,set,num,img,owned:false});
+  save();render();['mName','mSet','mNum','mImg'].forEach(i=>$(i).value='');
+  if(!img)alert('Carta adicionada, mas não achei uma imagem. Você pode removê-la e cadastrar de novo com uma URL.');
+};
+
+/* Detalhes e tela cheia */
+const CONDS=['','Mint (M)','Near Mint (NM)','Lightly Played (LP)','Moderately Played (MP)','Heavily Played (HP)','Danificada (DMG)','Gradada (PSA/BGS/CGC)'];
+const VERS=['','Normal','Holo','Reverse Holo','Full Art','Alternate Art','Promo','Primeira edição','Outra'];
+$('dCond').innerHTML=CONDS.map(v=>`<option value="${v}">${v||'Não informada'}</option>`).join('');
+$('dVer').innerHTML=VERS.map(v=>`<option value="${v}">${v||'Não informada'}</option>`).join('');
+const money=v=>Number(v).toLocaleString('pt-BR',{style:'currency',currency:'BRL'});
+const big=c=>c.big||(c.img&&/images\.pokemontcg\.io/.test(c.img)?c.img.replace(/\.png$/,'_hires.png'):c.img);
+function visible(s){
+  const f=$('filter').value,o=$('sort').value;s=s||cur();
+  if(!s)return [];
+  const l=s.cards.filter(c=>f==='all'||(f==='own')===!!c.owned);
+  const tie=(a,b)=>(a.date||'').localeCompare(b.date||'')||String(a.num).localeCompare(String(b.num),undefined,{numeric:true});
+  const nm=(a,b)=>a.name.localeCompare(b.name,'pt-BR',{sensitivity:'base'})||tie(a,b);
+  const dt=(a,b)=>(a.date||'9999').localeCompare(b.date||'9999')||String(a.num).localeCompare(String(b.num),undefined,{numeric:true});
+  if(o==='date')l.sort(dt);else if(o==='az')l.sort(nm);else if(o==='za')l.sort((a,b)=>nm(b,a));
+  return l;
+}
+let dId=null,lbBack=false,lbList=[],lbI=0;
+const dCard=()=>{const r=findCard(dId);return r&&r.c};
+function openDet(id){
+  dId=id;const c=dCard();
+  $('dName').textContent=c.name;$('dSub').textContent=`${c.set||''} ${c.num?'#'+c.num:''}`;
+  $('dImg').src=c.img||'';$('dOwn').checked=!!c.owned;
+  $('dCond').value=c.cond||'';$('dVer').value=c.ver||'';
+  $('dPrice').value=c.price>0?c.price:'';$('dUrl').value=c.img||'';
+  $('det').showModal();
+}
+function upd(){
+  const c=dCard();if(!c)return;
+  c.owned=$('dOwn').checked;c.cond=$('dCond').value;c.ver=$('dVer').value;
+  c.price=$('dPrice').value===''?'':parseFloat($('dPrice').value);
+  const u=$('dUrl').value.trim();
+  if(u!==(c.img||'')){c.img=u;c.big='';$('dImg').src=u}
+  save();render();
+}
+['dOwn','dCond','dVer','dPrice','dUrl'].forEach(i=>$(i).addEventListener('change',upd));
+$('dClose').onclick=()=>$('det').close();
+function showLb(){
+  const c=lbList[lbI],im=$('lbImg');
+  im.onerror=()=>{im.onerror=null;im.src=c.img};
+  im.src=big(c);
+  $('lbCap').textContent=`${c.name} · ${c.set||''} ${c.num?'#'+c.num:''} · ${c.owned?'Na coleção':'Faltando'} (${lbI+1}/${lbList.length})`;
+}
+function openLb(id,fromDet){
+  const r=findCard(id);lbList=r?visible(r.s):[];lbI=Math.max(0,lbList.findIndex(c=>c.id===id));
+  lbBack=!!fromDet;if(fromDet)$('det').close();
+  $('lb').hidden=false;showLb();
+  if($('lb').requestFullscreen)$('lb').requestFullscreen().catch(()=>{});
+}
+function closeLb(){
+  $('lb').hidden=true;
+  if(document.fullscreenElement)document.exitFullscreen();
+  if(lbBack){lbBack=false;$('det').showModal()}
+}
+function stepLb(d){if(!lbList.length)return;lbI=(lbI+d+lbList.length)%lbList.length;showLb()}
+$('dFull').onclick=()=>openLb(dId,true);
+$('dImg').onclick=()=>openLb(dId,true);
+$('lbX').onclick=closeLb;$('lbPrev').onclick=()=>stepLb(-1);$('lbNext').onclick=()=>stepLb(1);
+$('lb').addEventListener('click',e=>{if(e.target.id==='lb')closeLb()});
+document.addEventListener('keydown',e=>{
+  if($('lb').hidden)return;
+  if(e.key==='Escape')closeLb();
+  if(e.key==='ArrowLeft')stepLb(-1);
+  if(e.key==='ArrowRight')stepLb(1);
+});
+document.addEventListener('fullscreenchange',()=>{if(!document.fullscreenElement&&!$('lb').hidden)closeLb()});
+
+/* Arrastar e soltar (mouse e toque) */
+let drag=null;
+function moveGhost(e){drag.g.style.left=(e.clientX-drag.w/2)+'px';drag.g.style.top=(e.clientY-40)+'px';drag.y=e.clientY}
+function clearMarks(){document.querySelectorAll('.dropA,.dropB').forEach(x=>x.classList.remove('dropA','dropB'))}
+$('area').addEventListener('pointerdown',e=>{
+  const h=e.target.closest('[data-h]');if(!h||drag)return;
+  e.preventDefault();
+  const card=h.closest('.card'),g=card.cloneNode(true);
+  g.className=card.className+' ghost';g.style.width=card.offsetWidth+'px';
+  document.body.appendChild(g);card.classList.add('drag');
+  drag={id:card.dataset.id,g,card,t:null,after:false,y:e.clientY,w:card.offsetWidth};
+  moveGhost(e);
+  drag.timer=setInterval(()=>{if(drag.y<70)scrollBy(0,-14);else if(drag.y>innerHeight-70)scrollBy(0,14)},16);
+});
+window.addEventListener('pointermove',e=>{
+  if(!drag)return;
+  moveGhost(e);clearMarks();
+  const el=document.elementFromPoint(e.clientX,e.clientY);
+  const t=el&&el.closest('.card:not(.ghost)');
+  if(t&&t!==drag.card&&t.closest('.setbox')===drag.card.closest('.setbox')){const r=t.getBoundingClientRect();drag.after=e.clientX>r.left+r.width/2;drag.t=t;t.classList.add(drag.after?'dropA':'dropB')}
+  else drag.t=null;
+});
+function endDrag(ok){
+  if(!drag)return;
+  clearInterval(drag.timer);drag.g.remove();clearMarks();
+  if(ok&&drag.t){
+    const arr=findCard(drag.id).s.cards,i=arr.findIndex(c=>c.id===drag.id),m=arr.splice(i,1)[0];
+    let j=arr.findIndex(c=>c.id===drag.t.dataset.id);if(drag.after)j++;
+    arr.splice(j,0,m);save();
+  }
+  drag=null;render();
+}
+window.addEventListener('pointerup',()=>endDrag(true));
+window.addEventListener('pointercancel',()=>endDrag(false));
+
+/* PWA: service worker e armazenamento persistente */
+if('serviceWorker' in navigator&&/^https?:$/.test(location.protocol)){
+  window.addEventListener('load',()=>navigator.serviceWorker.register('sw.js').catch(()=>{}));
+}
+if(navigator.storage&&navigator.storage.persist){navigator.storage.persist().catch(()=>{})}
+
+render();
+</script>
+</body>
+</html>
