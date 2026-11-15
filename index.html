@@ -76,7 +76,7 @@ dialog::backdrop{background:rgba(5,6,9,.74)}
 .dhead{display:flex;align-items:center;gap:10px}
 .dhead h2{margin:0;font:bold 19px/1.2 var(--serif);flex:1}
 .ic{width:38px;padding:0;font-size:22px;line-height:1;border-radius:50%}
-.row{display:flex;gap:8px;align-items:center;flex-wrap:wrap}.row input{flex:1;min-width:150px}
+.row{display:flex;gap:8px;align-items:center;flex-wrap:wrap}.row input{flex:1;min-width:150px}#qn{flex:0 0 130px;min-width:0}
 .pane{display:flex;flex-direction:column;gap:10px;min-width:0}
 .dfoot{display:flex;gap:8px;align-items:center;padding-top:10px;border-top:1px solid var(--line)}
 .res{display:grid;grid-template-columns:repeat(auto-fill,minmax(104px,1fr));gap:10px;max-height:min(46vh,430px);min-height:120px;overflow:auto;padding:2px}
@@ -153,9 +153,9 @@ details summary{cursor:pointer;color:var(--mute);font-size:13px;margin-bottom:6p
   <div class="row"><span class="msg">Adicionar ao set:</span><select id="tgt" aria-label="Set de destino"></select></div>
   <div class="seg"><button id="tApi" class="on">Buscar na internet</button><button id="tMan">Cadastrar manualmente</button></div>
   <div id="pApi" class="pane">
-    <div class="seg" id="modeSeg"><button data-m="artist" class="on">Ilustrador</button><button data-m="name">Nome da carta</button></div>
-    <select id="mode" hidden><option value="artist"></option><option value="name"></option></select>
-    <div class="row"><input id="q" placeholder="Ex.: Mitsuhiro Arita" aria-label="Busca"><button class="p" id="go">Buscar</button></div>
+    <div class="seg" id="modeSeg"><button data-m="artist" class="on">Ilustrador</button><button data-m="name">Nome da carta</button><button data-m="set">Coleção / nº</button></div>
+    <select id="mode" hidden><option value="artist"></option><option value="name"></option><option value="set"></option></select>
+    <div class="row"><input id="q" placeholder="Ex.: Mitsuhiro Arita" aria-label="Busca"><input id="qn" placeholder="Nº (opcional)" aria-label="Número da carta" inputmode="text" hidden><button class="p" id="go">Buscar</button></div>
     <div class="msg" id="apiMsg"></div>
     <div class="res" id="res"></div>
     <div class="dfoot"><button id="selAll">Marcar todas</button><button id="more" hidden>Carregar mais</button><span class="sp"></span><button class="p" id="addSel" disabled>Adicionar selecionadas</button></div>
@@ -284,18 +284,50 @@ $('tgt').onchange=e=>{S.cur=e.target.value;save();render();drawRes()};
 $('close').onclick=()=>dlg.close();
 function tab(api){$('pApi').hidden=!api;$('pMan').hidden=api;$('tApi').classList.toggle('on',api);$('tMan').classList.toggle('on',!api)}
 $('tApi').onclick=()=>tab(true);$('tMan').onclick=()=>tab(false);
-$('mode').onchange=()=>$('q').placeholder=$('mode').value==='artist'?'Ex.: Mitsuhiro Arita':'Ex.: Pikachu';
-
+$('mode').onchange=()=>{const m=$('mode').value;$('qn').hidden=m!=='set';$('q').placeholder=m==='artist'?'Ex.: Mitsuhiro Arita':m==='name'?'Ex.: Pikachu':'Coleção (nome ou código). Ex.: Base Set, sv3pt5'};
+function candidates(){
+  const m=$('mode').value,v=$('q').value.trim();
+  if(!v)return [];
+  if(m==='artist')return [`artist:"${v}"`];
+  if(m==='name')return [`name:"${v}"`];
+  const n=$('qn').value.trim().split('/')[0].trim(),dig=/^\d+$/.test(n);
+  const nums=n?[...new Set([n,dig&&n.padStart(3,'0'),dig&&String(parseInt(n,10))].filter(Boolean))]:[''];
+  const words=v.split(/\s+/).map(w=>w.replace(/[^\p{L}\p{N}]/gu,'')).filter(Boolean);
+  const sets=[];
+  if(words.length===1)sets.push(`set.id:"${words[0].toLowerCase()}"`,`set.ptcgoCode:"${words[0].toUpperCase()}"`);
+  if(words.length)sets.push(words.map(w=>`set.name:${w}*`).join(' '));
+  const out=[];
+  sets.forEach(sq=>nums.forEach(nn=>out.push(nn?`${sq} number:"${nn}"`:sq)));
+  return out;
+}
+async function fetchPage(q,pg){
+  const r=await fetch(`https://api.pokemontcg.io/v2/cards?q=${encodeURIComponent(q)}&pageSize=100&page=${pg}&orderBy=set.releaseDate&select=id,name,number,images,set,artist`);
+  if(!r.ok)throw new Error('HTTP '+r.status);
+  return r.json();
+}
 async function search(more){
-  const v=$('q').value.trim();if(!v)return;
-  if(!more){results=[];picked=new Set();page=1;lastQ=$('mode').value==='artist'?`artist:"${v}"`:`name:"${v}"`}
-  else page++;
-  const m=$('apiMsg');m.className='msg';m.textContent='Buscando…';
+  const m=$('apiMsg');m.className='msg';
+  let cs=[];
+  if(!more){
+    cs=candidates();
+    if(!cs.length){m.textContent=$('mode').value==='set'?'Informe a coleção (nome ou código).':'Digite algo para buscar.';return}
+    results=[];picked=new Set();page=1;lastQ='';
+  }else page++;
+  m.textContent='Buscando…';
   try{
-    const url=`https://api.pokemontcg.io/v2/cards?q=${encodeURIComponent(lastQ)}&pageSize=100&page=${page}&orderBy=set.releaseDate&select=id,name,number,images,set,artist`;
-    const r=await fetch(url);if(!r.ok)throw new Error('HTTP '+r.status);
-    const j=await r.json();
+    let j=null,err=null;
+    if(more)j=await fetchPage(lastQ,page);
+    else for(const q of cs){
+      try{const t=await fetchPage(q,1);if(t.totalCount>0){j=t;lastQ=q;break}}catch(e){err=e}
+    }
+    if(!j){
+      if(err)throw err;
+      $('res').innerHTML='';$('more').hidden=true;updateSel();
+      m.textContent=$('mode').value==='set'?'Nenhuma carta encontrada. Tente o código da coleção (ex.: MEP, SVP, sv3pt5) ou só parte do nome. Coleções muito recentes podem ainda não estar na base de dados.':'Nenhuma carta encontrada.';
+      return;
+    }
     results=results.concat(j.data.map(c=>({key:c.id,name:c.name,set:c.set.name,num:c.number,img:c.images.small,big:c.images.large,date:c.set.releaseDate})));
+    results.sort((a,b)=>(a.date||'').localeCompare(b.date||'')||String(a.num).localeCompare(String(b.num),undefined,{numeric:true}));
     m.textContent=`${results.length} de ${j.totalCount} cartas encontradas. Clique nas cartas para selecionar.`;
     $('more').hidden=results.length>=j.totalCount;
     drawRes();
@@ -310,7 +342,7 @@ function drawRes(){
 }
 $('res').addEventListener('change',e=>{const k=e.target.dataset.k;e.target.checked?picked.add(k):picked.delete(k);e.target.parentNode.classList.toggle('on',e.target.checked);updateSel()});
 $('go').onclick=()=>search(false);
-$('q').onkeydown=e=>{if(e.key==='Enter')search(false)};
+$('q').onkeydown=$('qn').onkeydown=e=>{if(e.key==='Enter')search(false)};
 $('more').onclick=()=>search(true);
 $('selAll').onclick=()=>{const have=new Set(cur().cards.map(c=>c.key)),ks=results.filter(c=>!have.has(c.key)).map(c=>c.key),all=ks.length&&ks.every(k=>picked.has(k));picked=new Set(all?[]:ks);drawRes()};
 $('addSel').onclick=()=>{
