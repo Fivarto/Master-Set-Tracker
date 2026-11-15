@@ -305,49 +305,110 @@ async function fetchPage(q,pg){
   if(!r.ok)throw new Error('HTTP '+r.status);
   return r.json();
 }
+const norm=t=>String(t||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().replace(/[^a-z0-9 ]/g,' ').replace(/\s+/g,' ').trim();
+function lev(a,b){const m=a.length,n=b.length,d=Array.from({length:m+1},(_,i)=>[i,...Array(n).fill(0)]);for(let j=1;j<=n;j++)d[0][j]=j;for(let i=1;i<=m;i++)for(let j=1;j<=n;j++)d[i][j]=Math.min(d[i-1][j]+1,d[i][j-1]+1,d[i-1][j-1]+(a[i-1]===b[j-1]?0:1));return d[m][n]}
+function similar(x,y){
+  const a=norm(x),b=norm(y);if(!a||!b)return false;
+  const tol=Math.max(2,Math.round(b.length*.15)),r=b.split(' ').reverse().join(' ');
+  return a===b||lev(a,b)<=tol||lev(a,r)<=tol;
+}
+function fuzzyQ(v){
+  const w=norm(v).split(' ').filter(x=>x.length>1);
+  if(!w.length)return '';
+  const p=x=>`artist:${x.slice(0,3)}*`;
+  return w.length>1?`${p(w[0])} ${p(w[w.length-1])}`:p(w[0]);
+}
+let lastArtist='',loaded=0,total=0;
 async function search(more){
   const m=$('apiMsg');m.className='msg';
+  const mode=$('mode').value;
   let cs=[];
   if(!more){
     cs=candidates();
-    if(!cs.length){m.textContent=$('mode').value==='set'?'Informe a coleção (nome ou código).':'Digite algo para buscar.';return}
-    results=[];picked=new Set();page=1;lastQ='';
+    if(!cs.length){m.textContent=mode==='set'?'Informe a coleção (nome ou código).':'Digite algo para buscar.';return}
+    results=[];picked=new Set();page=1;lastQ='';loaded=0;total=0;lastArtist=$('q').value.trim();sid++;
   }else page++;
   m.textContent='Buscando…';
   try{
-    let j=null,err=null;
-    if(more)j=await fetchPage(lastQ,page);
-    else for(const q of cs){
-      try{const t=await fetchPage(q,1);if(t.totalCount>0){j=t;lastQ=q;break}}catch(e){err=e}
+    let data=[],tot=0,exactN=0,err=null,found=false;
+    if(more){const t=await fetchPage(lastQ,page);data=t.data;tot=t.totalCount;exactN=data.length;found=true}
+    else if(mode==='artist'){
+      // busca exata + busca aproximada (pega grafias diferentes do nome na base de dados)
+      const fq=fuzzyQ(lastArtist);
+      const rs=await Promise.allSettled([fetchPage(cs[0],1),fq?fetchPage(fq,1):Promise.resolve({data:[],totalCount:0})]);
+      if(rs[0].status==='fulfilled'){data=rs[0].value.data;tot=rs[0].value.totalCount;exactN=data.length;lastQ=cs[0]}else err=rs[0].reason;
+      if(rs[1].status==='fulfilled')data=data.concat(rs[1].value.data.filter(c=>similar(c.artist,lastArtist)));
+      found=data.length>0;
+    }else for(const q of cs){
+      try{const t=await fetchPage(q,1);if(t.totalCount>0){data=t.data;tot=t.totalCount;exactN=data.length;lastQ=q;found=true;break}}catch(e){err=e}
     }
-    if(!j){
+    if(!found){
       if(err)throw err;
       $('res').innerHTML='';$('more').hidden=true;updateSel();
-      m.textContent=$('mode').value==='set'?'Nenhuma carta encontrada. Tente o código da coleção (ex.: MEP, SVP, sv3pt5) ou só parte do nome. Coleções muito recentes podem ainda não estar na base de dados.':'Nenhuma carta encontrada.';
+      if(mode==='artist'&&!more){m.textContent='Nenhuma carta na base principal.';enrich(lastArtist,sid);return}
+      m.textContent=mode==='set'?'Nenhuma carta encontrada. Tente o código da coleção (ex.: MEP, SVP, sv3pt5) ou só parte do nome. Coleções muito recentes podem ainda não estar na base de dados.':'Nenhuma carta encontrada.';
       return;
     }
-    results=results.concat(j.data.map(c=>({key:c.id,name:c.name,set:c.set.name,num:c.number,img:c.images.small,big:c.images.large,date:c.set.releaseDate})));
+    loaded+=exactN;if(!more||tot)total=tot;
+    const seen=new Set(results.map(c=>c.key));
+    data.forEach(c=>{if(seen.has(c.id))return;seen.add(c.id);results.push({key:c.id,name:c.name,set:c.set.name,num:c.number,img:c.images.small,big:c.images.large,date:c.set.releaseDate,alt:mode==='artist'?(norm(c.artist)!==norm(lastArtist)?c.artist:''):(c.artist||'')})});
     results.sort((a,b)=>(a.date||'').localeCompare(b.date||'')||String(a.num).localeCompare(String(b.num),undefined,{numeric:true}));
-    m.textContent=`${results.length} de ${j.totalCount} cartas encontradas. Clique nas cartas para selecionar.`;
-    $('more').hidden=results.length>=j.totalCount;
+    const alts=mode==='artist'?results.filter(c=>c.alt).length:0;
+    m.textContent=`${results.length} cartas encontradas.`+(loaded<total?' Use “Carregar mais” para ver o resto.':'')+(alts?` ${alts} com o nome do ilustrador escrito de forma diferente na base (marcadas nas cartas).`:'')+' Clique nas cartas para selecionar.';
+    $('more').hidden=loaded>=total;
     drawRes();
+    if(mode==='artist'&&!more)enrich(lastArtist,sid);
   }catch(e){m.className='msg err';m.textContent='Falha na busca ('+e.message+'). Verifique a internet e tente de novo; a API às vezes demora.'}
+}
+let sid=0;
+const sig=c=>norm(c.name)+'|'+(parseInt(c.num,10)||norm(c.num));
+function inSet(c){return cur().cards.some(x=>x.key===c.key||sig(x)===sig(c))}
+const dexSets={};
+async function dexJson(u){const r=await fetch(u);if(!r.ok)throw new Error('HTTP '+r.status);return r.json()}
+async function enrich(name,id){
+  const m=$('apiMsg'),base=' Consultando a segunda base (TCGdex)…';
+  m.textContent+=base;
+  try{
+    const j=await dexJson(`https://api.tcgdex.net/v2/en/illustrators/${encodeURIComponent(name)}`);
+    const list=Array.isArray(j)?j:(j.cards||[]);
+    if(id!==sid)return;
+    const known=new Set(results.map(sig));
+    const todo=list.filter(b=>b.id&&!known.has(norm(b.name)+'|'+(parseInt(b.localId,10)||norm(b.localId))));
+    const add=[];
+    for(let i=0;i<todo.length;i+=6){
+      const part=await Promise.all(todo.slice(i,i+6).map(async b=>{
+        try{
+          const d=await dexJson(`https://api.tcgdex.net/v2/en/cards/${encodeURIComponent(b.id)}`);
+          const si=d.set&&d.set.id;
+          if(si&&!dexSets[si])dexSets[si]=dexJson(`https://api.tcgdex.net/v2/en/sets/${encodeURIComponent(si)}`).then(x=>x.releaseDate||'',()=>'');
+          const dt=si?await dexSets[si]:'';
+          return {key:'dex:'+d.id,name:d.name,set:d.set?d.set.name:'',num:d.localId,img:d.image?d.image+'/low.webp':'',big:d.image?d.image+'/high.webp':'',date:dt?dt.replace(/-/g,'/'):'9999',alt:'',src:'TCGdex'};
+        }catch(e){return null}
+      }));
+      add.push(...part.filter(Boolean));
+    }
+    if(id!==sid)return;
+    let n=0;
+    add.forEach(c=>{if(!results.some(r=>sig(r)===sig(c))){results.push(c);n++}});
+    results.sort((a,b)=>(a.date||'').localeCompare(b.date||'')||String(a.num).localeCompare(String(b.num),undefined,{numeric:true}));
+    m.textContent=m.textContent.replace(base,n?` ${n} carta(s) vieram da segunda base (TCGdex), marcadas nas cartas.`:' A segunda base (TCGdex) não trouxe cartas novas.');
+    drawRes();
+  }catch(e){if(id===sid)m.textContent=m.textContent.replace(base,' Não consegui consultar a segunda base (TCGdex).')}
 }
 function updateSel(){const n=picked.size;$('addSel').disabled=!n;$('addSel').textContent=n?`Adicionar (${n})`:'Adicionar selecionadas'}
 function drawRes(){
-  const have=new Set(cur().cards.map(c=>c.key));
-  $('res').innerHTML=results.map(c=>{const h=have.has(c.key),on=picked.has(c.key);
-    return `<label class="rc ${on?'on':''} ${h?'have':''}" title="${esc(c.name)}"><input type="checkbox" data-k="${c.key}" ${on?'checked':''} ${h?'disabled':''}><span class="rimg"><img loading="lazy" src="${esc(c.img)}" alt="${esc(c.name)}"></span><span class="rn">${esc(c.name)}</span><span class="rs">${esc(c.set)} #${esc(c.num)}</span>${h?'<span class="tagin">No set</span>':''}</label>`}).join('');
+  $('res').innerHTML=results.map(c=>{const h=inSet(c),on=picked.has(c.key);
+    return `<label class="rc ${on?'on':''} ${h?'have':''}" title="${esc(c.name)}"><input type="checkbox" data-k="${c.key}" ${on?'checked':''} ${h?'disabled':''}><span class="rimg"><img loading="lazy" src="${esc(c.img)}" alt="${esc(c.name)}"></span><span class="rn">${esc(c.name)}</span><span class="rs">${esc(c.set)} #${esc(c.num)}</span>${c.alt?`<span class="rs">Ilustr.: ${esc(c.alt)}</span>`:''}${c.src?`<span class="rs">Fonte: ${c.src}</span>`:''}${h?'<span class="tagin">No set</span>':''}</label>`}).join('');
   updateSel();
 }
 $('res').addEventListener('change',e=>{const k=e.target.dataset.k;e.target.checked?picked.add(k):picked.delete(k);e.target.parentNode.classList.toggle('on',e.target.checked);updateSel()});
 $('go').onclick=()=>search(false);
 $('q').onkeydown=$('qn').onkeydown=e=>{if(e.key==='Enter')search(false)};
 $('more').onclick=()=>search(true);
-$('selAll').onclick=()=>{const have=new Set(cur().cards.map(c=>c.key)),ks=results.filter(c=>!have.has(c.key)).map(c=>c.key),all=ks.length&&ks.every(k=>picked.has(k));picked=new Set(all?[]:ks);drawRes()};
+$('selAll').onclick=()=>{const ks=results.filter(c=>!inSet(c)).map(c=>c.key),all=ks.length&&ks.every(k=>picked.has(k));picked=new Set(all?[]:ks);drawRes()};
 $('addSel').onclick=()=>{
-  const s=cur(),have=new Set(s.cards.map(c=>c.key));let n=0;
-  results.filter(c=>picked.has(c.key)&&!have.has(c.key)).forEach(c=>{s.cards.push({id:uid(),key:c.key,name:c.name,set:c.set,num:c.num,img:c.img,big:c.big,date:c.date,owned:false});n++});
+  const s=cur();let n=0;
+  results.filter(c=>picked.has(c.key)&&!inSet(c)).forEach(c=>{s.cards.push({id:uid(),key:c.key,name:c.name,set:c.set,num:c.num,img:c.img,big:c.big,date:c.date,owned:false});n++});
   save();render();picked=new Set();drawRes();$('apiMsg').textContent=`${n} carta(s) adicionada(s).`;
 };
 
