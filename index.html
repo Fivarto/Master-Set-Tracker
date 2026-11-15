@@ -5,106 +5,143 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Meus Master Sets</title>
 <link rel="manifest" href="manifest.json">
-<meta name="theme-color" content="#0f8f7e">
+<meta name="theme-color" content="#101319">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="Master Sets">
 <link rel="icon" href="icon-192.png">
 <link rel="apple-touch-icon" href="icon-192.png">
 <style>
-:root{--bg:#eef0f3;--panel:#fff;--ink:#1b1f27;--mute:#6b7280;--line:#d9dde3;--acc:#0f8f7e;--accink:#fff;--warn:#c2410c}
-@media (prefers-color-scheme:dark){:root:not([data-theme=light]){--bg:#13161b;--panel:#1c2027;--ink:#e8eaee;--mute:#98a1ae;--line:#2c323c;--acc:#3ccab5;--accink:#08201c;--warn:#fb923c}}
+:root{color-scheme:dark;--bg:#15181e;--bg2:#101319;--panel:#1d212a;--panel2:#272c37;--ink:#ebe7df;--mute:#9aa0ac;--line:#2e3440;--acc:#d9ac4e;--accink:#1a1405;--warn:#f08a5d;--serif:Georgia,"Iowan Old Style","Palatino Linotype",serif}
 *{box-sizing:border-box}
-body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.45 "Trebuchet MS",Verdana,sans-serif}
-header{display:flex;gap:12px;align-items:center;flex-wrap:wrap;padding:14px 18px;background:var(--panel);border-bottom:1px solid var(--line);position:sticky;top:0;z-index:5}
-h1{font-size:18px;margin:0 8px 0 0}
-select,input,button{font:inherit;color:var(--ink);background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:7px 10px}
-button{cursor:pointer}
-button.p{background:var(--acc);color:var(--accink);border-color:var(--acc);font-weight:bold}
-button:focus-visible,input:focus-visible,select:focus-visible,.card:focus-visible{outline:2px solid var(--acc);outline-offset:2px}
-.sp{flex:1}
-main{padding:18px;max-width:1300px;margin:0 auto}
-.bar{display:flex;gap:14px;align-items:center;flex-wrap:wrap;margin-bottom:14px}
-.prog{flex:1;min-width:200px}
-.track{height:10px;background:var(--line);border-radius:6px;overflow:hidden;margin-top:4px}
-.fill{height:100%;background:var(--acc);width:0;transition:width .4s}
-.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:14px}
-.card{position:relative;background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:6px;cursor:pointer;text-align:center}
-.card .im{aspect-ratio:245/342;border-radius:6px;overflow:hidden;background:var(--line);display:flex;align-items:center;justify-content:center;font-size:12px;color:var(--mute);padding:6px}
-.card img{width:100%;height:100%;object-fit:cover;display:block;filter:grayscale(1) opacity(.5);transition:filter .35s}
-.card.own img{filter:none}
-.card.own{border-color:var(--acc);box-shadow:0 0 0 2px var(--acc)}
-.card small{display:block;color:var(--mute);font-size:11px;margin-top:4px;line-height:1.25}
-.card b{display:block;font-size:13px;margin-top:5px}
-.card .x{position:absolute;z-index:2;top:8px;right:8px;padding:0 7px;line-height:22px;border-radius:50%;opacity:0}
-.card:hover .x,.card:focus-within .x{opacity:1}
-.empty{padding:50px 10px;text-align:center;color:var(--mute)}
-dialog{background:var(--panel);color:var(--ink);border:1px solid var(--line);border-radius:12px;padding:18px;width:min(720px,94vw);max-height:90vh}
-dialog::backdrop{background:rgba(0,0,0,.5)}
-.row{display:flex;gap:8px;flex-wrap:wrap;margin:8px 0}
-.row input{flex:1;min-width:140px}
-.res{display:grid;grid-template-columns:repeat(auto-fill,minmax(96px,1fr));gap:8px;margin:10px 0;max-height:46vh;overflow:auto}
-.res label{font-size:11px;text-align:center;cursor:pointer;border:2px solid transparent;border-radius:8px;padding:3px}
-.res label.on{border-color:var(--acc)}
-.res img{width:100%;border-radius:4px;display:block}
-.res input{display:none}
-.tabs{display:flex;gap:6px}
-.tabs button.on{background:var(--acc);color:var(--accink);border-color:var(--acc)}
-.msg{color:var(--mute);font-size:13px;min-height:18px}
-.msg.err{color:var(--warn)}
-.card .x.v{left:8px;right:auto;font-size:13px}
-@media (hover:none){.card .x{opacity:.85}}
-.meta{color:var(--acc);font-weight:bold}
-.dg{display:grid;grid-template-columns:minmax(0,260px) 1fr;gap:18px}
-@media(max-width:600px){.dg{grid-template-columns:1fr}}
-.dimg img{width:100%;border-radius:10px;display:block;cursor:zoom-in}
-.dimg button{width:100%;margin-top:8px}
-.dform{display:flex;flex-direction:column;gap:10px}
-.dform h2{margin:0;font-size:18px}
-.dform label{display:flex;flex-direction:column;gap:3px;font-size:13px;color:var(--mute)}
-.dform label.chk{flex-direction:row;align-items:center;gap:8px;color:var(--ink);font-size:15px}
-.dform label.chk input{width:18px;height:18px}
-#lb{position:fixed;inset:0;background:#000;z-index:50;display:flex;align-items:center;justify-content:center}
-#lb[hidden]{display:none}
-#lb img{max-width:100%;max-height:100vh;object-fit:contain}
-#lb button{position:absolute;background:rgba(255,255,255,.18);color:#fff;border:0;font-size:28px;width:48px;height:48px;border-radius:50%;padding:0}
-#lbX{top:14px;right:14px}#lbPrev{left:14px;top:50%}#lbNext{right:14px;top:50%}
-#lbCap{position:absolute;bottom:14px;left:0;right:0;text-align:center;color:#fff;font-size:14px;text-shadow:0 1px 4px #000}
-.card .x.h{left:50%;right:auto;transform:translateX(-50%);opacity:.9;cursor:grab;touch-action:none;user-select:none;-webkit-user-select:none;padding:0 10px}
-.card.drag{opacity:.35}
-.card.ghost{position:fixed;z-index:60;pointer-events:none;opacity:.92;box-shadow:0 10px 28px rgba(0,0,0,.45);transform:rotate(3deg)}
-.card.dropB{box-shadow:-6px 0 0 0 var(--acc)!important}
-.card.dropA{box-shadow:6px 0 0 0 var(--acc)!important}
 [hidden]{display:none!important}
+body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.45 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
+button,select,input{font:inherit;color:var(--ink);background:var(--panel2);border:1px solid var(--line);border-radius:8px;padding:8px 12px;min-height:38px}
+input,select{background:var(--bg2)}
+button{cursor:pointer}button:hover{border-color:#4a5262}
+button.p{background:var(--acc);color:var(--accink);border-color:var(--acc);font-weight:700}
+button:disabled{opacity:.45;cursor:default}
+button:focus-visible,input:focus-visible,select:focus-visible,.card:focus-visible,.rc:focus-within{outline:2px solid var(--acc);outline-offset:2px}
+.sp{flex:1}
+.msg{color:var(--mute);font-size:13px;min-height:18px}.msg.err{color:var(--warn)}
+header{display:flex;gap:10px;align-items:center;padding:10px 18px;background:var(--bg2);border-bottom:1px solid var(--line);position:sticky;top:0;z-index:5}
+header img{border-radius:7px;display:block}
+h1{font:bold 20px/1 var(--serif);margin:0}
+.menuwrap{position:relative}
+#menu{position:absolute;right:0;top:calc(100% + 6px);min-width:210px;background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:6px;z-index:20;box-shadow:0 12px 30px rgba(0,0,0,.5);display:flex;flex-direction:column}
+#menu button{text-align:left;border:0;background:transparent}#menu button:hover{background:var(--panel2)}
+main{padding:18px;max-width:1300px;margin:0 auto}
+.tools{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:14px}
+.seg{display:inline-flex;background:var(--bg2);border:1px solid var(--line);border-radius:10px;padding:3px;gap:2px}
+.seg button{border:0;background:transparent;color:var(--mute);min-height:32px;padding:4px 12px;border-radius:7px}
+.seg button.on{background:var(--panel2);color:var(--ink);box-shadow:inset 0 0 0 1px var(--acc)}
+.sum{background:var(--panel);border:1px solid var(--line);border-left:4px solid var(--acc);border-radius:10px;padding:12px 14px;margin-bottom:14px}
+#progTxt{font:600 17px/1.3 var(--serif)}
+.track{height:8px;background:var(--bg2);border-radius:5px;overflow:hidden;margin-top:8px;box-shadow:inset 0 1px 2px rgba(0,0,0,.5)}
+.fill{height:100%;background:linear-gradient(90deg,#b98a2e,var(--acc));width:0;transition:width .4s}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:14px}
+@media(max-width:620px){.grid{grid-template-columns:repeat(auto-fill,minmax(128px,1fr));gap:10px}main{padding:12px}header{padding:8px 12px}}
+.card{position:relative;background:linear-gradient(#262b36,#1d212a);border:1px solid var(--line);border-radius:8px;padding:7px;cursor:pointer;text-align:center;box-shadow:inset 0 1px 0 rgba(255,255,255,.06),0 2px 6px rgba(0,0,0,.35)}
+.card .im{position:relative;aspect-ratio:245/342;border-radius:5px;overflow:hidden;background:var(--bg2);display:flex;align-items:center;justify-content:center;font-size:12px;color:var(--mute);padding:6px;box-shadow:inset 0 6px 14px rgba(0,0,0,.45)}
+.card .im::after{content:"";position:absolute;inset:0;background:linear-gradient(115deg,rgba(255,255,255,.11),transparent 38%);pointer-events:none}
+.card img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;display:block;filter:grayscale(1) opacity(.45);transition:filter .35s}
+.card.own img{filter:none}
+.card.own{border-color:var(--acc);box-shadow:0 0 0 1px var(--acc),0 4px 16px rgba(217,172,78,.2)}
+.card.own .im::before{content:"✓";position:absolute;right:6px;bottom:6px;z-index:1;width:22px;height:22px;border-radius:50%;background:var(--acc);color:var(--accink);font-weight:bold;line-height:22px}
+.card b{display:block;font-size:13px;margin-top:6px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.card small{display:block;color:var(--mute);font-size:11px;margin-top:2px;line-height:1.25}
+.card small.meta{color:var(--acc);font-weight:600}
+.card .x{position:absolute;z-index:2;top:10px;right:10px;min-height:0;height:26px;min-width:26px;padding:0 7px;line-height:24px;border-radius:50%;background:rgba(12,14,18,.82);border-color:rgba(255,255,255,.18);opacity:0}
+.card:hover .x,.card:focus-within .x{opacity:1}
+@media(hover:none){.card .x{opacity:.85}}
+.card .x.v{left:10px;right:auto;font-size:13px}
+.card .x.h{left:50%;right:auto;transform:translateX(-50%);opacity:.95;cursor:grab;touch-action:none;user-select:none;-webkit-user-select:none;padding:0 10px}
+.card.drag{opacity:.35}
+.card.ghost{position:fixed;z-index:60;pointer-events:none;opacity:.92;box-shadow:0 10px 28px rgba(0,0,0,.5);transform:rotate(3deg)}
+.card.dropB{box-shadow:-6px 0 0 0 var(--acc)!important}.card.dropA{box-shadow:6px 0 0 0 var(--acc)!important}
+.empty{padding:56px 12px;text-align:center;color:var(--mute);font:16px/1.5 var(--serif)}.empty button{margin-top:14px;font-family:system-ui,sans-serif}
+.grid .empty{grid-column:1/-1;padding:24px 10px}
 #multi{display:flex;flex-direction:column;gap:12px}
-.setbox{background:var(--panel);border:1px solid var(--line);border-radius:12px;overflow:hidden}
+.setbox{background:var(--panel);border:1px solid var(--line);border-left:4px solid var(--acc);border-radius:12px;overflow:hidden}
 .sethead{display:flex;align-items:center;gap:10px;flex-wrap:wrap;padding:8px 10px}
-.sethead .tog{flex:1;min-width:160px;text-align:left;font-weight:bold;font-size:16px;border:0;background:transparent}
+.sethead .tog{flex:1;min-width:160px;text-align:left;border:0;background:transparent;font:bold 17px/1.3 var(--serif)}
 .sethead .sinfo{color:var(--mute);font-size:13px}
 .sethead .track{width:110px;margin:0}
 .setbox>.grid{padding:4px 12px 14px}
 .chev{display:inline-block;width:1.1em;color:var(--acc)}
-.grid .empty{grid-column:1/-1;padding:24px 10px}
+dialog{background:var(--panel);color:var(--ink);border:1px solid var(--line);border-radius:14px;padding:16px 18px;width:min(740px,94vw);max-height:92vh;box-shadow:0 24px 60px rgba(0,0,0,.6)}
+dialog[open]{display:flex;flex-direction:column;gap:12px}
+dialog::backdrop{background:rgba(5,6,9,.74)}
+@media(max-width:620px){dialog{width:100vw;max-width:100vw;margin:auto 0 0 0;border-radius:16px 16px 0 0;max-height:94vh}}
+.dhead{display:flex;align-items:center;gap:10px}
+.dhead h2{margin:0;font:bold 19px/1.2 var(--serif);flex:1}
+.ic{width:38px;padding:0;font-size:22px;line-height:1;border-radius:50%}
+.row{display:flex;gap:8px;align-items:center;flex-wrap:wrap}.row input{flex:1;min-width:150px}
+.pane{display:flex;flex-direction:column;gap:10px;min-width:0}
+.dfoot{display:flex;gap:8px;align-items:center;padding-top:10px;border-top:1px solid var(--line)}
+.res{display:grid;grid-template-columns:repeat(auto-fill,minmax(104px,1fr));gap:10px;max-height:min(46vh,430px);min-height:120px;overflow:auto;padding:2px}
+.rc{position:relative;display:flex;flex-direction:column;gap:3px;font-size:11px;text-align:center;cursor:pointer;border:2px solid transparent;border-radius:10px;padding:4px;background:var(--bg2)}
+.rc input{position:absolute;opacity:0;pointer-events:none}
+.rimg{display:block;aspect-ratio:245/342;border-radius:6px;overflow:hidden;background:var(--panel2)}
+.rimg img{width:100%;height:100%;object-fit:cover;display:block}
+.rn{font-weight:600;overflow:hidden;white-space:nowrap;text-overflow:ellipsis}.rs{color:var(--mute)}
+.rc.on{border-color:var(--acc)}
+.rc.on::after{content:"✓";position:absolute;top:8px;right:8px;width:22px;height:22px;border-radius:50%;background:var(--acc);color:var(--accink);font-weight:bold;line-height:22px}
+.rc.have{opacity:.5;cursor:default}
+.tagin{position:absolute;top:8px;left:8px;background:var(--panel2);border:1px solid var(--line);border-radius:6px;padding:0 6px;font-size:10px}
+.form{display:grid;grid-template-columns:1fr 1fr;gap:10px}.form .full{grid-column:1/-1}
+.form label,.dform label{display:flex;flex-direction:column;gap:4px;font-size:13px;color:var(--mute)}
+.dg{display:grid;grid-template-columns:minmax(0,250px) 1fr;gap:18px}
+@media(max-width:620px){.dg{grid-template-columns:1fr}.dimg{max-width:230px;margin:0 auto}}
+.dimg .slot{border-radius:10px;overflow:hidden;background:var(--bg2);box-shadow:0 6px 18px rgba(0,0,0,.5)}
+.dimg img{width:100%;display:block;cursor:zoom-in}
+.dimg button{width:100%;margin-top:8px}
+.dform{display:flex;flex-direction:column;gap:12px}
+.two{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+label.sw{flex-direction:row;align-items:center;gap:12px;cursor:pointer;padding:10px 12px;background:var(--bg2);border:1px solid var(--line);border-radius:10px;font-size:15px;color:var(--ink)}
+.sw input{appearance:none;-webkit-appearance:none;flex:none;width:44px;height:26px;min-height:0;border:0;padding:0;margin:0;border-radius:13px;background:#3b4250;position:relative;transition:background .2s}
+.sw input::after{content:"";position:absolute;top:3px;left:3px;width:20px;height:20px;border-radius:50%;background:#fff;transition:left .2s}
+.sw input:checked{background:var(--acc)}.sw input:checked::after{left:21px;background:var(--accink)}
+.money{display:flex;align-items:center;background:var(--bg2);border:1px solid var(--line);border-radius:8px;padding-left:12px;color:var(--mute)}
+.money input{border:0;background:transparent;flex:1;min-width:0}
+details summary{cursor:pointer;color:var(--mute);font-size:13px;margin-bottom:6px}
+.hmb{display:none}
+@media(max-width:620px){h1,#addBtn{white-space:nowrap}.hd{display:none}.hmb{display:inline}.sethead{gap:8px}.sethead .tog{flex:1 0 140px;min-width:0}.sethead button[data-add]{padding:6px 10px}.sethead .sinfo{order:8}.sethead .track{order:9;flex:1;width:auto;min-width:80px}}
+#lb{position:fixed;inset:0;background:#000;z-index:50;display:flex;align-items:center;justify-content:center}
+#lb img{max-width:100%;max-height:100vh;object-fit:contain}
+#lb button{position:absolute;background:rgba(255,255,255,.18);color:#fff;border:0;font-size:28px;width:48px;height:48px;border-radius:50%;padding:0}
+#lbX{top:14px;right:14px}#lbPrev{left:14px;top:50%}#lbNext{right:14px;top:50%}
+#lbCap{position:absolute;bottom:14px;left:0;right:0;text-align:center;color:#fff;font-size:14px;text-shadow:0 1px 4px #000}
 </style>
 </head>
 <body>
 <header>
+  <img src="icon-192.png" width="30" height="30" alt="">
   <h1>Master Sets</h1>
-  <select id="viewSel" aria-label="Tipo de visualização"><option value="one">Visualização: set único</option><option value="multi">Visualização: vários sets</option></select>
-  <select id="setSel" aria-label="Master set"></select>
-  <button id="newSet">Novo master set</button>
-  <button id="delSet">Excluir set</button>
-  <button id="expAll">Expandir todos</button><button id="colAll">Recolher todos</button>
   <span class="sp"></span>
-  <button class="p" id="addBtn">Adicionar cartas</button>
-  <button id="expBtn">Exportar backup</button>
-  <button id="impBtn">Importar</button>
+  <button class="p" id="addBtn"><span class="hd">+ Adicionar cartas</span><span class="hmb">+ Cartas</span></button>
+  <div class="menuwrap">
+    <button id="menuBtn" class="ic" aria-haspopup="menu" aria-expanded="false" aria-label="Mais opções">⋯</button>
+    <div id="menu" role="menu" hidden>
+      <button id="newSet">Novo master set</button>
+      <button id="delSet">Excluir set atual</button>
+      <button id="expBtn">Exportar backup</button>
+      <button id="impBtn">Importar backup</button>
+    </div>
+  </div>
   <input type="file" id="impFile" accept=".json" hidden>
 </header>
 <main>
-  <div class="bar">
-    <div class="prog"><span id="progTxt"></span><div class="track"><div class="fill" id="fill"></div></div></div>
-    <select id="filter" aria-label="Filtro"><option value="all">Todas</option><option value="miss">Faltando</option><option value="own">Já tenho</option></select>
+  <div class="tools">
+    <div class="seg" id="viewSeg" role="group" aria-label="Visualização"><button data-v="one">Set único</button><button data-v="multi">Vários sets</button></div>
+    <select id="viewSel" hidden><option value="one"></option><option value="multi"></option></select>
+    <select id="setSel" aria-label="Master set"></select>
+    <button id="expAll">Expandir</button><button id="colAll">Recolher</button>
+  </div>
+  <div class="sum"><span id="progTxt"></span><div class="track"><div class="fill" id="fill"></div></div></div>
+  <div class="tools">
+    <div class="seg" id="filterSeg" role="group" aria-label="Filtro"><button data-f="all">Todas</button><button data-f="miss">Faltando</button><button data-f="own">Já tenho</button></div>
+    <select id="filter" hidden><option value="all"></option><option value="miss"></option><option value="own"></option></select>
     <select id="sort" aria-label="Ordenação"><option value="date">Ordem: lançamento</option><option value="az">Ordem: A–Z</option><option value="za">Ordem: Z–A</option><option value="manual">Ordem: manual (arrastar)</option></select>
     <span class="msg" id="hint"></span>
   </div>
@@ -112,46 +149,40 @@ dialog::backdrop{background:rgba(0,0,0,.5)}
 </main>
 
 <dialog id="dlg">
+  <div class="dhead"><h2>Adicionar cartas</h2><button class="ic" id="close" aria-label="Fechar">×</button></div>
   <div class="row"><span class="msg">Adicionar ao set:</span><select id="tgt" aria-label="Set de destino"></select></div>
-  <div class="tabs">
-    <button id="tApi" class="on">Buscar na internet</button>
-    <button id="tMan">Cadastrar manualmente</button>
-  </div>
-  <div id="pApi">
-    <div class="row">
-      <select id="mode"><option value="artist">Ilustrador</option><option value="name">Nome da carta</option></select>
-      <input id="q" placeholder="Ex.: Mitsuhiro Arita" aria-label="Busca">
-      <button class="p" id="go">Buscar</button>
-    </div>
+  <div class="seg"><button id="tApi" class="on">Buscar na internet</button><button id="tMan">Cadastrar manualmente</button></div>
+  <div id="pApi" class="pane">
+    <div class="seg" id="modeSeg"><button data-m="artist" class="on">Ilustrador</button><button data-m="name">Nome da carta</button></div>
+    <select id="mode" hidden><option value="artist"></option><option value="name"></option></select>
+    <div class="row"><input id="q" placeholder="Ex.: Mitsuhiro Arita" aria-label="Busca"><button class="p" id="go">Buscar</button></div>
     <div class="msg" id="apiMsg"></div>
     <div class="res" id="res"></div>
-    <div class="row">
-      <button id="selAll">Marcar todas</button>
-      <button id="more" hidden>Carregar mais</button>
-      <span class="sp"></span>
-      <button class="p" id="addSel">Adicionar selecionadas</button>
+    <div class="dfoot"><button id="selAll">Marcar todas</button><button id="more" hidden>Carregar mais</button><span class="sp"></span><button class="p" id="addSel" disabled>Adicionar selecionadas</button></div>
+  </div>
+  <div id="pMan" class="pane" hidden>
+    <div class="form">
+      <label class="full">Nome da carta<input id="mName" placeholder="Ex.: Charizard"></label>
+      <label>Coleção<input id="mSet" placeholder="Opcional"></label>
+      <label>Número<input id="mNum" placeholder="Opcional"></label>
+      <label class="full">URL da imagem<input id="mImg" placeholder="https://... (opcional)"></label>
     </div>
+    <div class="msg">Sem URL, o app tenta achar a imagem pelo nome e número.</div>
+    <div class="dfoot"><span class="sp"></span><button class="p" id="mAdd">Adicionar carta</button></div>
   </div>
-  <div id="pMan" hidden>
-    <div class="row"><input id="mName" placeholder="Nome da carta"><input id="mSet" placeholder="Coleção (opcional)"><input id="mNum" placeholder="Número (opcional)"></div>
-    <div class="row"><input id="mImg" placeholder="URL da imagem (opcional)"></div>
-    <div class="msg">Sem URL, o app tenta achar a imagem pelo nome e número na internet.</div>
-    <div class="row"><span class="sp"></span><button class="p" id="mAdd">Adicionar carta</button></div>
-  </div>
-  <div class="row"><span class="sp"></span><button id="close">Fechar</button></div>
 </dialog>
 
 <dialog id="det">
+  <div class="dhead"><h2 id="dName"></h2><button class="ic" id="dClose" aria-label="Fechar">×</button></div>
+  <div class="msg" id="dSub"></div>
   <div class="dg">
-    <div class="dimg"><img id="dImg" alt=""><button id="dFull">Tela cheia</button></div>
+    <div class="dimg"><div class="slot"><img id="dImg" alt=""></div><button id="dFull">⤢ Tela cheia</button></div>
     <div class="dform">
-      <h2 id="dName"></h2><div class="msg" id="dSub"></div>
-      <label class="chk"><input type="checkbox" id="dOwn"> Já tenho esta carta</label>
-      <label>Condição<select id="dCond"></select></label>
-      <label>Versão<select id="dVer"></select></label>
-      <label>Preço pago (R$)<input id="dPrice" type="number" min="0" step="0.01" inputmode="decimal"></label>
-      <label>URL da imagem<input id="dUrl" placeholder="https://..."></label>
-      <div class="row"><span class="sp"></span><button class="p" id="dClose">Fechar</button></div>
+      <label class="sw"><input type="checkbox" id="dOwn"><span>Já tenho esta carta</span></label>
+      <div class="two"><label>Condição<select id="dCond"></select></label><label>Versão<select id="dVer"></select></label></div>
+      <label>Preço pago<div class="money"><span>R$</span><input id="dPrice" type="number" min="0" step="0.01" inputmode="decimal" placeholder="0,00"></div></label>
+      <details><summary>Imagem da carta</summary><label>URL da imagem<input id="dUrl" placeholder="https://..."></label></details>
+      <div class="msg">As alterações são salvas automaticamente.</div>
     </div>
   </div>
 </dialog>
@@ -182,14 +213,14 @@ function stats(cards){
 }
 function findCard(id){for(const s of S.sets){const c=s.cards.find(x=>x.id===id);if(c)return {s,c}}return null}
 function render(){
-  const multi=S.view==='multi';
+  const multi=S.view==='multi';syncSeg();
   $('viewSel').value=multi?'multi':'one';
   $('setSel').hidden=multi;$('delSet').hidden=multi;$('expAll').hidden=!multi;$('colAll').hidden=!multi;
   $('setSel').innerHTML=S.sets.map(s=>`<option value="${s.id}" ${s.id===S.cur?'selected':''}>${esc(s.name)}</option>`).join('')||'<option>Nenhum set</option>';
   const g=$('grid'),m=$('multi');g.hidden=multi;m.hidden=!multi;
   const f=$('filter').value,canDrag=$('sort').value==='manual'&&f==='all';
   $('hint').textContent=$('sort').value==='manual'?(canDrag?'Arraste pelo botão ⠿ para reordenar.':'Para reordenar, use o filtro "Todas".'):'';
-  if(!S.sets.length){(multi?m:g).innerHTML='<div class="empty">Crie seu primeiro master set (por exemplo, o nome de um ilustrador).</div>';$('progTxt').textContent='';$('fill').style.width='0';return}
+  if(!S.sets.length){(multi?m:g).innerHTML='<div class="empty">Seu fichário está vazio.<br>Crie um master set, por exemplo com o nome de um ilustrador.<br><button class="p" data-newset>Criar master set</button></div>';$('progTxt').textContent='';$('fill').style.width='0';return}
   if(multi){
     const t=stats(S.sets.flatMap(x=>x.cards));
     $('progTxt').textContent=`${t.own} de ${t.tot} cartas em ${S.sets.length} sets (${Math.round(t.pct)}%)`+(t.spent?` · Investido: ${money(t.spent)}`:'');
@@ -213,6 +244,7 @@ function render(){
 
 $('area').addEventListener('click',e=>{
   if(e.target.closest('[data-h]'))return;
+  if(e.target.closest('[data-newset]')){$('newSet').click();return}
   const tg=e.target.closest('[data-tog]');
   if(tg){const x=S.sets.find(y=>y.id===tg.dataset.tog);x.open=!x.open;S.cur=x.id;save();render();return}
   const ad=e.target.closest('[data-add]');
@@ -269,15 +301,18 @@ async function search(more){
     drawRes();
   }catch(e){m.className='msg err';m.textContent='Falha na busca ('+e.message+'). Verifique a internet e tente de novo; a API às vezes demora.'}
 }
+function updateSel(){const n=picked.size;$('addSel').disabled=!n;$('addSel').textContent=n?`Adicionar (${n})`:'Adicionar selecionadas'}
 function drawRes(){
-  const s=cur(),have=new Set(s.cards.map(c=>c.key));
-  $('res').innerHTML=results.map(c=>`<label class="${picked.has(c.key)?'on':''}" title="${esc(c.name)}"><input type="checkbox" data-k="${c.key}" ${picked.has(c.key)?'checked':''}><img loading="lazy" src="${esc(c.img)}" alt="${esc(c.name)}">${esc(c.name)}<br>${esc(c.set)} #${esc(c.num)}${have.has(c.key)?'<br><b>(já no set)</b>':''}</label>`).join('');
+  const have=new Set(cur().cards.map(c=>c.key));
+  $('res').innerHTML=results.map(c=>{const h=have.has(c.key),on=picked.has(c.key);
+    return `<label class="rc ${on?'on':''} ${h?'have':''}" title="${esc(c.name)}"><input type="checkbox" data-k="${c.key}" ${on?'checked':''} ${h?'disabled':''}><span class="rimg"><img loading="lazy" src="${esc(c.img)}" alt="${esc(c.name)}"></span><span class="rn">${esc(c.name)}</span><span class="rs">${esc(c.set)} #${esc(c.num)}</span>${h?'<span class="tagin">No set</span>':''}</label>`}).join('');
+  updateSel();
 }
-$('res').addEventListener('change',e=>{const k=e.target.dataset.k;e.target.checked?picked.add(k):picked.delete(k);e.target.parentNode.classList.toggle('on',e.target.checked)});
+$('res').addEventListener('change',e=>{const k=e.target.dataset.k;e.target.checked?picked.add(k):picked.delete(k);e.target.parentNode.classList.toggle('on',e.target.checked);updateSel()});
 $('go').onclick=()=>search(false);
 $('q').onkeydown=e=>{if(e.key==='Enter')search(false)};
 $('more').onclick=()=>search(true);
-$('selAll').onclick=()=>{const all=picked.size===results.length;picked=new Set(all?[]:results.map(c=>c.key));drawRes()};
+$('selAll').onclick=()=>{const have=new Set(cur().cards.map(c=>c.key)),ks=results.filter(c=>!have.has(c.key)).map(c=>c.key),all=ks.length&&ks.every(k=>picked.has(k));picked=new Set(all?[]:ks);drawRes()};
 $('addSel').onclick=()=>{
   const s=cur(),have=new Set(s.cards.map(c=>c.key));let n=0;
   results.filter(c=>picked.has(c.key)&&!have.has(c.key)).forEach(c=>{s.cards.push({id:uid(),key:c.key,name:c.name,set:c.set,num:c.num,img:c.img,big:c.big,date:c.date,owned:false});n++});
@@ -401,6 +436,20 @@ function endDrag(ok){
 }
 window.addEventListener('pointerup',()=>endDrag(true));
 window.addEventListener('pointercancel',()=>endDrag(false));
+
+/* Menu, controles segmentados */
+function syncSeg(){
+  document.querySelectorAll('#viewSeg button').forEach(b=>b.classList.toggle('on',b.dataset.v===(S.view==='multi'?'multi':'one')));
+  document.querySelectorAll('#filterSeg button').forEach(b=>b.classList.toggle('on',b.dataset.f===$('filter').value));
+}
+$('viewSeg').onclick=e=>{const b=e.target.closest('button');if(b){S.view=b.dataset.v;save();render()}};
+$('filterSeg').onclick=e=>{const b=e.target.closest('button');if(b){$('filter').value=b.dataset.f;render()}};
+$('modeSeg').onclick=e=>{const b=e.target.closest('button');if(!b)return;$('mode').value=b.dataset.m;$('mode').onchange();document.querySelectorAll('#modeSeg button').forEach(x=>x.classList.toggle('on',x===b))};
+function closeMenu(){$('menu').hidden=true;$('menuBtn').setAttribute('aria-expanded','false')}
+$('menuBtn').onclick=()=>{const o=$('menu').hidden;$('menu').hidden=!o;$('menuBtn').setAttribute('aria-expanded',String(o))};
+document.addEventListener('click',e=>{if(!e.target.closest('.menuwrap'))closeMenu()});
+$('menu').addEventListener('click',e=>{if(e.target.closest('button'))closeMenu()});
+document.addEventListener('keydown',e=>{if(e.key==='Escape')closeMenu()});
 
 /* PWA: service worker e armazenamento persistente */
 if('serviceWorker' in navigator&&/^https?:$/.test(location.protocol)){
