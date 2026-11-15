@@ -107,6 +107,8 @@ label.sw{flex-direction:row;align-items:center;gap:12px;cursor:pointer;padding:1
 details summary{cursor:pointer;color:var(--mute);font-size:13px;margin-bottom:6px}
 .hmb{display:none}
 @media(max-width:620px){h1,#addBtn{white-space:nowrap}.hd{display:none}.hmb{display:inline}.sethead{gap:8px}.sethead .tog{flex:1 0 140px;min-width:0}.sethead button[data-add]{padding:6px 10px}.sethead .sinfo{order:8}.sethead .track{order:9;flex:1;width:auto;min-width:80px}}
+.sech{grid-column:1/-1;margin:12px 0 0;font:bold 15px/1.3 var(--serif);color:var(--acc)}
+.sech:first-child{margin-top:0}
 #lb{position:fixed;inset:0;background:#000;z-index:50;display:flex;align-items:center;justify-content:center}
 #lb img{max-width:100%;max-height:100vh;object-fit:contain}
 #lb button{position:absolute;background:rgba(255,255,255,.18);color:#fff;border:0;font-size:28px;width:48px;height:48px;border-radius:50%;padding:0}
@@ -179,8 +181,8 @@ details summary{cursor:pointer;color:var(--mute);font-size:13px;margin-bottom:6p
     <div class="dimg"><div class="slot"><img id="dImg" alt=""></div><button id="dFull">⤢ Tela cheia</button></div>
     <div class="dform">
       <label class="sw"><input type="checkbox" id="dOwn"><span>Já tenho esta carta</span></label>
-      <div class="two"><label>Condição<select id="dCond"></select></label><label>Versão<select id="dVer"></select></label></div>
-      <label>Preço pago<div class="money"><span>R$</span><input id="dPrice" type="number" min="0" step="0.01" inputmode="decimal" placeholder="0,00"></div></label>
+      <div id="dPhys" class="dform"><div class="two"><label>Condição<select id="dCond"></select></label><label>Versão<select id="dVer"></select></label></div>
+      <label>Preço pago<div class="money"><span>R$</span><input id="dPrice" type="number" min="0" step="0.01" inputmode="decimal" placeholder="0,00"></div></label></div>
       <details><summary>Imagem da carta</summary><label>URL da imagem<input id="dUrl" placeholder="https://..."></label></details>
       <div class="msg">As alterações são salvas automaticamente.</div>
     </div>
@@ -207,9 +209,15 @@ function cardHtml(c,canDrag){
     <div class="im">${c.img?`<img loading="lazy" src="${esc(c.img)}" alt="${esc(c.name)}" onerror="this.parentNode.textContent='Sem imagem'">`:'Sem imagem'}</div>
     <b>${esc(c.name)}</b><small>${esc(c.set||'')} ${c.num?'#'+esc(c.num):''}</small>${c.owned?`<small class="meta">${esc([c.cond&&c.cond.replace(/.*\((.*)\)/,'$1'),c.ver,c.price>0&&money(c.price)].filter(Boolean).join(' · '))}</small>`:''}</div>`;
 }
+const isPocket=c=>!!c.pocket||/^dex:((P-)?[AB]\d+[a-z]?-|P-[AB]-)/i.test(c.key||'');
 function stats(cards){
-  const own=cards.filter(c=>c.owned).length,tot=cards.length;
-  return {own,tot,pct:tot?own/tot*100:0,spent:cards.reduce((a,c)=>a+(c.owned&&c.price>0?c.price:0),0)};
+  const ph=cards.filter(c=>!isPocket(c)),po=cards.filter(isPocket),own=ph.filter(c=>c.owned).length;
+  return {own,tot:ph.length,all:cards.length,po:po.filter(c=>c.owned).length,pt:po.length,pct:ph.length?own/ph.length*100:0,spent:cards.reduce((a,c)=>a+(c.owned&&c.price>0?c.price:0),0)};
+}
+function gridHtml(list,canDrag){
+  const ph=list.filter(c=>!isPocket(c)),po=list.filter(isPocket),h=c=>cardHtml(c,canDrag);
+  if(!po.length)return ph.map(h).join('');
+  return (ph.length?`<h3 class="sech">Cartas físicas (TCG) · ${ph.length}</h3>`+ph.map(h).join(''):'')+`<h3 class="sech">TCG Pocket (digital) · ${po.length}</h3>`+po.map(h).join('');
 }
 function findCard(id){for(const s of S.sets){const c=s.cards.find(x=>x.id===id);if(c)return {s,c}}return null}
 function render(){
@@ -223,23 +231,23 @@ function render(){
   if(!S.sets.length){(multi?m:g).innerHTML='<div class="empty">Seu fichário está vazio.<br>Crie um master set, por exemplo com o nome de um ilustrador.<br><button class="p" data-newset>Criar master set</button></div>';$('progTxt').textContent='';$('fill').style.width='0';return}
   if(multi){
     const t=stats(S.sets.flatMap(x=>x.cards));
-    $('progTxt').textContent=`${t.own} de ${t.tot} cartas em ${S.sets.length} sets (${Math.round(t.pct)}%)`+(t.spent?` · Investido: ${money(t.spent)}`:'');
+    $('progTxt').textContent=`${t.own} de ${t.tot} cartas em ${S.sets.length} sets (${Math.round(t.pct)}%)`+(t.pt?` · TCG Pocket: ${t.po} de ${t.pt}`:'')+(t.spent?` · Investido: ${money(t.spent)}`:'');
     $('fill').style.width=t.pct+'%';
     m.innerHTML=S.sets.map(x=>{
       const st=stats(x.cards),open=!!x.open,list=open?visible(x):[];
       return `<section class="setbox" data-sid="${x.id}"><div class="sethead">
         <button class="tog" data-tog="${x.id}" aria-expanded="${open}"><span class="chev">${open?'▾':'▸'}</span>${esc(x.name)}</button>
-        <span class="sinfo">${st.own}/${st.tot} (${Math.round(st.pct)}%)${st.spent?' · '+money(st.spent):''}</span>
+        <span class="sinfo">${st.own}/${st.tot} (${Math.round(st.pct)}%)${st.pt?` · Pocket ${st.po}/${st.pt}`:''}${st.spent?' · '+money(st.spent):''}</span>
         <div class="track"><div class="fill" style="width:${st.pct}%"></div></div>
         <button data-add="${x.id}">+ Cartas</button><button data-dels="${x.id}" aria-label="Excluir set" title="Excluir set">×</button></div>
-        <div class="grid" ${open?'':'hidden'}>${open?(list.length?list.map(c=>cardHtml(c,canDrag)).join(''):`<div class="empty">${st.tot?'Nenhuma carta neste filtro.':'Nenhuma carta ainda. Clique em “+ Cartas”.'}</div>`):''}</div></section>`;
+        <div class="grid" ${open?'':'hidden'}>${open?(list.length?gridHtml(list,canDrag):`<div class="empty">${st.all?'Nenhuma carta neste filtro.':'Nenhuma carta ainda. Clique em “+ Cartas”.'}</div>`):''}</div></section>`;
     }).join('');
     return;
   }
   const x=cur(),st=stats(x.cards),list=visible(x);
-  $('progTxt').textContent=`${st.own} de ${st.tot} cartas (${Math.round(st.pct)}%)`+(st.spent?` · Investido: ${money(st.spent)}`:'');
+  $('progTxt').textContent=`${st.own} de ${st.tot} cartas (${Math.round(st.pct)}%)`+(st.pt?` · TCG Pocket: ${st.po} de ${st.pt}`:'')+(st.spent?` · Investido: ${money(st.spent)}`:'');
   $('fill').style.width=st.pct+'%';
-  g.innerHTML=list.length?list.map(c=>cardHtml(c,canDrag)).join(''):`<div class="empty">${st.tot?'Nenhuma carta neste filtro.':'Nenhuma carta ainda. Clique em “Adicionar cartas”.'}</div>`;
+  g.innerHTML=list.length?gridHtml(list,canDrag):`<div class="empty">${st.all?'Nenhuma carta neste filtro.':'Nenhuma carta ainda. Clique em “Adicionar cartas”.'}</div>`;
 }
 
 $('area').addEventListener('click',e=>{
@@ -380,9 +388,9 @@ async function enrich(name,id){
         try{
           const d=await dexJson(`https://api.tcgdex.net/v2/en/cards/${encodeURIComponent(b.id)}`);
           const si=d.set&&d.set.id;
-          if(si&&!dexSets[si])dexSets[si]=dexJson(`https://api.tcgdex.net/v2/en/sets/${encodeURIComponent(si)}`).then(x=>x.releaseDate||'',()=>'');
-          const dt=si?await dexSets[si]:'';
-          return {key:'dex:'+d.id,name:d.name,set:d.set?d.set.name:'',num:d.localId,img:d.image?d.image+'/low.webp':'',big:d.image?d.image+'/high.webp':'',date:dt?dt.replace(/-/g,'/'):'9999',alt:'',src:'TCGdex'};
+          if(si&&!dexSets[si])dexSets[si]=dexJson(`https://api.tcgdex.net/v2/en/sets/${encodeURIComponent(si)}`).then(x=>({date:x.releaseDate||'',pocket:!!(x.serie&&x.serie.id==='tcgp')}),()=>({date:'',pocket:false}));
+          const ds=si?await dexSets[si]:{date:'',pocket:false};
+          return {key:'dex:'+d.id,name:d.name,set:d.set?d.set.name:'',num:d.localId,img:d.image?d.image+'/low.webp':'',big:d.image?d.image+'/high.webp':'',date:ds.date?ds.date.replace(/-/g,'/'):'9999',pocket:ds.pocket||/^((P-)?[AB]\d+[a-z]?-|P-[AB]-)/i.test(d.id),alt:'',src:'TCGdex'};
         }catch(e){return null}
       }));
       add.push(...part.filter(Boolean));
@@ -397,8 +405,10 @@ async function enrich(name,id){
 }
 function updateSel(){const n=picked.size;$('addSel').disabled=!n;$('addSel').textContent=n?`Adicionar (${n})`:'Adicionar selecionadas'}
 function drawRes(){
-  $('res').innerHTML=results.map(c=>{const h=inSet(c),on=picked.has(c.key);
-    return `<label class="rc ${on?'on':''} ${h?'have':''}" title="${esc(c.name)}"><input type="checkbox" data-k="${c.key}" ${on?'checked':''} ${h?'disabled':''}><span class="rimg"><img loading="lazy" src="${esc(c.img)}" alt="${esc(c.name)}"></span><span class="rn">${esc(c.name)}</span><span class="rs">${esc(c.set)} #${esc(c.num)}</span>${c.alt?`<span class="rs">Ilustr.: ${esc(c.alt)}</span>`:''}${c.src?`<span class="rs">Fonte: ${c.src}</span>`:''}${h?'<span class="tagin">No set</span>':''}</label>`}).join('');
+  const ph=results.filter(c=>!isPocket(c)),po=results.filter(isPocket);
+  $('res').innerHTML=[...ph,...po].map((c,i)=>{const h=inSet(c),on=picked.has(c.key);
+    const hd=po.length?(i===0&&ph.length?`<h3 class="sech">Cartas físicas (TCG) · ${ph.length}</h3>`:'')+(i===ph.length?`<h3 class="sech">TCG Pocket (digital) · ${po.length}</h3>`:''):'';
+    return hd+`<label class="rc ${on?'on':''} ${h?'have':''}" title="${esc(c.name)}"><input type="checkbox" data-k="${c.key}" ${on?'checked':''} ${h?'disabled':''}><span class="rimg"><img loading="lazy" src="${esc(c.img)}" alt="${esc(c.name)}"></span><span class="rn">${esc(c.name)}</span><span class="rs">${esc(c.set)} #${esc(c.num)}</span>${c.alt?`<span class="rs">Ilustr.: ${esc(c.alt)}</span>`:''}${c.src?`<span class="rs">Fonte: ${c.src}</span>`:''}${h?'<span class="tagin">No set</span>':''}</label>`}).join('');
   updateSel();
 }
 $('res').addEventListener('change',e=>{const k=e.target.dataset.k;e.target.checked?picked.add(k):picked.delete(k);e.target.parentNode.classList.toggle('on',e.target.checked);updateSel()});
@@ -408,7 +418,7 @@ $('more').onclick=()=>search(true);
 $('selAll').onclick=()=>{const ks=results.filter(c=>!inSet(c)).map(c=>c.key),all=ks.length&&ks.every(k=>picked.has(k));picked=new Set(all?[]:ks);drawRes()};
 $('addSel').onclick=()=>{
   const s=cur();let n=0;
-  results.filter(c=>picked.has(c.key)&&!inSet(c)).forEach(c=>{s.cards.push({id:uid(),key:c.key,name:c.name,set:c.set,num:c.num,img:c.img,big:c.big,date:c.date,owned:false});n++});
+  results.filter(c=>picked.has(c.key)&&!inSet(c)).forEach(c=>{s.cards.push({id:uid(),key:c.key,name:c.name,set:c.set,num:c.num,img:c.img,big:c.big,date:c.date,pocket:isPocket(c),owned:false});n++});
   save();render();picked=new Set();drawRes();$('apiMsg').textContent=`${n} carta(s) adicionada(s).`;
 };
 
@@ -448,7 +458,7 @@ function visible(s){
 let dId=null,lbBack=false,lbList=[],lbI=0;
 const dCard=()=>{const r=findCard(dId);return r&&r.c};
 function openDet(id){
-  dId=id;const c=dCard();
+  dId=id;const c=dCard();$('dPhys').hidden=isPocket(c);
   $('dName').textContent=c.name;$('dSub').textContent=`${c.set||''} ${c.num?'#'+c.num:''}`;
   $('dImg').src=c.img||'';$('dOwn').checked=!!c.owned;
   $('dCond').value=c.cond||'';$('dVer').value=c.ver||'';
