@@ -172,7 +172,9 @@ label.orow{cursor:pointer}
     <div class="seg" id="modeSeg"><button data-m="artist" class="on">Ilustrador</button><button data-m="name">Nome da carta</button><button data-m="set">Coleção / nº</button></div>
     <select id="mode" hidden><option value="artist"></option><option value="name"></option><option value="set"></option></select>
     <div class="row"><input id="q" placeholder="Ex.: Mitsuhiro Arita" aria-label="Busca"><input id="qn" placeholder="Nº (opcional)" aria-label="Número da carta" inputmode="text" hidden><button class="p" id="go">Buscar</button></div>
+    <div class="row"><button id="scanBtn">📷 Escanear carta</button><input type="file" id="scanFile" accept="image/*" capture="environment" hidden><span class="msg">Segure o celular na vertical, com a carta inteira em pé, de frente e com boa luz.</span></div>
     <div class="msg" id="apiMsg"></div>
+    <details id="scanDbg" hidden><summary>Texto lido pela câmera</summary><pre id="scanTxt" style="white-space:pre-wrap;font-size:12px;color:var(--mute);margin:6px 0"></pre></details>
     <div class="res" id="res"></div>
     <div class="dfoot"><button id="selAll">Marcar todas</button><button id="more" hidden>Carregar mais</button><span class="sp"></span><button class="p" id="addSel" disabled>Adicionar selecionadas</button></div>
   </div>
@@ -550,6 +552,97 @@ async function enrich(name,id){
     drawRes();
   }catch(e){if(id===sid)m.textContent=m.textContent.replace(base,' Não consegui consultar a segunda base (TCGdex).')}
 }
+/* Scan por câmera: OCR gratuito (Tesseract.js) + busca por número/coleção */
+let tessP=null,tessW=null;
+function loadTess(){
+  return tessP||(tessP=new Promise((ok,no)=>{
+    if(window.Tesseract)return ok();
+    const sc=document.createElement('script');
+    sc.src='https://cdn.jsdelivr.net/npm/tesseract.js@5.1.1/dist/tesseract.min.js';
+    sc.onload=ok;sc.onerror=()=>{tessP=null;no(new Error('não consegui carregar o leitor de texto (precisa de internet)'))};
+    document.head.appendChild(sc);
+  }));
+}
+async function getWorker(){await loadTess();if(!tessW)tessW=await Tesseract.createWorker('eng');return tessW}
+async function loadImg(file){const u=URL.createObjectURL(file),im=new Image();im.src=u;await im.decode();return im}
+function cropCanvas(im,y0,y1,maxW){
+  const sw=im.naturalWidth,sy=im.naturalHeight*y0,sh=im.naturalHeight*(y1-y0),k=Math.min((maxW||2200)/sw,2.5);
+  const c=document.createElement('canvas');c.width=Math.round(sw*k);c.height=Math.max(1,Math.round(sh*k));
+  const x=c.getContext('2d');x.filter='grayscale(1) contrast(1.5)';x.drawImage(im,0,sy,sw,sh,0,0,c.width,c.height);
+  return c;
+}
+const STOP=new Set(['EN','JP','PT','ES','FR','DE','IT','TCG','HP','ILLUS','NINTENDO','CREATURES','GAME','FREAK','POKEMON','ETC','THE','AND','NAME']);
+function guessName(t){
+  for(let l of String(t||'').split('\n')){
+    l=l.replace(/\b(BASIC|STAGE\s*[12]|FASE\s*[12]|B[AÁ]SICO)\b/gi,' ').split(/\bHP\b|\s\d{2,3}\s*\S?$/i)[0];
+    l=l.replace(/[^A-Za-zÀ-ÿ'’\- ]/g,' ').replace(/\s+/g,' ').trim();
+    if(l.replace(/[^A-Za-z]/g,'').length>=3)return l;
+  }
+  return '';
+}
+function parseScan(foot,head,full){
+  const U=(String(foot||'')+'\n'+String(full||'')).toUpperCase();
+  let num='',tot='',codes=[];
+  const m=U.match(/\b([A-Z]{0,4}\d{1,3})\s*[\/\\|]\s*([A-Z]{0,4}\d{2,3})\b/);
+  if(m){
+    num=m[1];tot=m[2].replace(/\D/g,'');
+    const ls=U.lastIndexOf('\n',m.index)+1,le=U.indexOf('\n',m.index),line=U.slice(ls,le<0?U.length:le),pos=m.index-ls;
+    const toks=[];let t,re=/\b[A-Z][A-Z0-9]{1,4}\b/g;
+    while((t=re.exec(line))){if(!STOP.has(t[0])&&t[0]!==m[1]&&t[0]!==m[2])toks.push({v:t[0],d:Math.abs(t.index-pos)})}
+    toks.sort((a,b)=>a.d-b.d).forEach(x=>{if(!codes.includes(x.v))codes.push(x.v)});
+  }else{
+    const p=U.match(/\b(SVP|MEP|SWSH|SM|XY|BW|HGSS|DP)\s*(?:EN\s*)?(\d{1,3})\b/);
+    if(p){if(p[1]==='SVP'||p[1]==='MEP'){num=p[2];codes=[p[1]]}else num=p[1]+p[2].padStart(3,'0')}
+  }
+  const name=guessName(head)||guessName(full);
+  return {num,tot,codes:codes.slice(0,3),name};
+}
+const numVariants=n=>/^\d+$/.test(n)?[...new Set([n,String(parseInt(n,10)),n.padStart(3,'0')])]:[n];
+function scanQueries(p){
+  const q=[];
+  if(p.num){
+    const ns=numVariants(p.num);
+    p.codes.forEach(c=>ns.forEach(n=>q.push(`set.ptcgoCode:"${c}" number:"${n}"`)));
+    if(p.tot)ns.forEach(n=>q.push(`set.printedTotal:${p.tot} number:"${n}"`));
+    if(p.name)ns.forEach(n=>q.push(`name:"${p.name}" number:"${n}"`));
+    if(/^[A-Z]+\d+$/.test(p.num)&&!p.tot)ns.forEach(n=>q.push(`number:"${n}"`));
+  }
+  if(p.name)q.push(`name:"${p.name}"`);
+  return q;
+}
+async function scan(file){
+  const m=$('apiMsg');m.className='msg';sid++;
+  try{
+    m.textContent='Carregando o leitor de texto (na primeira vez pode levar alguns segundos)…';
+    const w=await getWorker(),im=await loadImg(file);
+    m.textContent='Lendo a carta…';
+    await w.setParameters({tessedit_pageseg_mode:'6'});
+    const foot=(await w.recognize(cropCanvas(im,.76,1))).data.text;
+    const head=(await w.recognize(cropCanvas(im,0,.16))).data.text;
+    let full='';
+    if(!/\d{1,3}\s*[\/\\|]\s*\d{2,3}/.test(foot)){await w.setParameters({tessedit_pageseg_mode:'11'});full=(await w.recognize(cropCanvas(im,0,1,1600))).data.text}
+    $('scanTxt').textContent=`[rodapé]\n${foot}\n[topo]\n${head}`+(full?`\n[carta inteira]\n${full}`:'');$('scanDbg').hidden=false;
+    const p=parseScan(foot,head,full);
+    if(!p.num&&!p.name){m.className='msg err';m.textContent='Não consegui ler número nem nome. Tente de novo com mais luz, sem reflexo e com a carta inteira na foto. Você também pode buscar manualmente.';return}
+    const lido=`Li: ${p.num?'nº '+p.num+(p.tot?'/'+p.tot:''):'sem número'}${p.codes.length?', código '+p.codes.join(' ou '):''}${p.name?', nome “'+p.name+'”':''}.`;
+    // preenche os campos para você poder corrigir e buscar de novo
+    if(p.num&&p.codes.length){document.querySelector('#modeSeg [data-m=set]').click();$('q').value=p.codes[0];$('qn').value=p.num}
+    else if(p.name){document.querySelector('#modeSeg [data-m=name]').click();$('q').value=p.name}
+    m.textContent=lido+' Buscando…';
+    const qs=scanQueries(p),rs=await Promise.allSettled(qs.map(q=>fetchPage(q,1)));
+    const ok=rs.find(r=>r.status==='fulfilled'&&r.value.totalCount>0);
+    results=[];picked=new Set();loaded=0;total=0;$('more').hidden=true;
+    if(!ok){$('res').innerHTML='';updateSel();m.className='msg err';m.textContent=lido+' Nenhuma carta encontrada na base. Corrija os campos abaixo e busque de novo, ou cadastre manualmente.';return}
+    results=ok.value.data.map(c=>({key:c.id,name:c.name,set:c.set.name,num:c.number,img:c.images.small,big:c.images.large,date:c.set.releaseDate,alt:c.artist||''}));
+    results.sort((a,b)=>(a.date||'').localeCompare(b.date||'')||String(a.num).localeCompare(String(b.num),undefined,{numeric:true}));
+    m.textContent=lido+` ${results.length} carta(s) encontrada(s). Selecione a correta e adicione.`;
+    drawRes();
+    if(results.length===1){picked.add(results[0].key);drawRes()}
+  }catch(e){m.className='msg err';m.textContent='Falha no scan ('+e.message+').'}
+}
+$('scanBtn').onclick=()=>$('scanFile').click();
+$('scanFile').onchange=e=>{const f=e.target.files[0];e.target.value='';if(f)scan(f)};
+
 function updateSel(){const n=picked.size;$('addSel').disabled=!n;$('addSel').textContent=n?`Adicionar (${n})`:'Adicionar selecionadas'}
 function drawRes(){
   const ph=results.filter(c=>!isPocket(c)),po=results.filter(isPocket);
