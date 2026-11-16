@@ -118,6 +118,13 @@ details summary{cursor:pointer;color:var(--mute);font-size:13px;margin-bottom:6p
 #mvList,#adList{overflow:auto;max-height:55vh}
 label.orow{cursor:pointer}
 .orow input[type=checkbox]{min-height:0;width:18px;height:18px;padding:0;flex:none}
+dialog#cam{padding:0;border:0;border-radius:0;margin:0;width:100vw;height:100vh;height:100dvh;max-width:none;max-height:none;background:#000;overflow:hidden}
+dialog#cam[open]{display:block}
+#camV{position:absolute;inset:0;width:100%;height:100%;object-fit:contain;background:#000}
+#camG{position:absolute;border:3px solid var(--acc);border-radius:12px;box-shadow:0 0 0 9999px rgba(0,0,0,.5);pointer-events:none}
+#camHint{position:absolute;top:calc(12px + env(safe-area-inset-top,0px));left:12px;right:12px;text-align:center;color:#fff;font-size:14px;text-shadow:0 1px 4px #000}
+#camBar{position:absolute;bottom:calc(16px + env(safe-area-inset-bottom,0px));left:0;right:0;display:flex;gap:14px;justify-content:center}
+#camBar button{min-width:130px;min-height:48px;font-size:16px}
 .sech{grid-column:1/-1;margin:12px 0 0;font:bold 15px/1.3 var(--serif);color:var(--acc)}
 .sech:first-child{margin-top:0}
 #lb{position:fixed;inset:0;background:#000;z-index:50;display:flex;align-items:center;justify-content:center}
@@ -172,7 +179,7 @@ label.orow{cursor:pointer}
     <div class="seg" id="modeSeg"><button data-m="artist" class="on">Ilustrador</button><button data-m="name">Nome da carta</button><button data-m="set">Coleção / nº</button></div>
     <select id="mode" hidden><option value="artist"></option><option value="name"></option><option value="set"></option></select>
     <div class="row"><input id="q" placeholder="Ex.: Mitsuhiro Arita" aria-label="Busca"><input id="qn" placeholder="Nº (opcional)" aria-label="Número da carta" inputmode="text" hidden><button class="p" id="go">Buscar</button></div>
-    <div class="row"><button id="scanBtn">📷 Escanear carta</button><input type="file" id="scanFile" accept="image/*" capture="environment" hidden><span class="msg">Segure o celular na vertical, com a carta inteira em pé, de frente e com boa luz.</span></div>
+    <div class="row"><button id="scanBtn">📷 Escanear carta</button><button id="scanPick">🖼 Usar foto</button><input type="file" id="scanFile" accept="image/*" hidden><span class="msg">Segure o celular na vertical, com a carta inteira em pé, de frente e com boa luz.</span></div>
     <div class="msg" id="apiMsg"></div>
     <details id="scanDbg" hidden><summary>Texto lido pela câmera</summary><pre id="scanTxt" style="white-space:pre-wrap;font-size:12px;color:var(--mute);margin:6px 0"></pre></details>
     <div class="res" id="res"></div>
@@ -190,6 +197,12 @@ label.orow{cursor:pointer}
   </div>
 </dialog>
 
+<dialog id="cam">
+  <video id="camV" playsinline muted autoplay></video>
+  <div id="camG"></div>
+  <div id="camHint">Encaixe a carta no quadro, com o rodapé (número) bem visível</div>
+  <div id="camBar"><button id="camCancel">Cancelar</button><button class="p" id="camShot">Capturar</button></div>
+</dialog>
 <dialog id="mvDlg">
   <div class="dhead"><h2 id="mvTitle"></h2><button class="ic" id="mvClose" aria-label="Fechar">×</button></div>
   <div id="mvList"></div>
@@ -563,10 +576,11 @@ function loadTess(){
     document.head.appendChild(sc);
   }));
 }
-async function getWorker(){await loadTess();if(!tessW)tessW=await Tesseract.createWorker('eng');return tessW}
+let termT=null;
+async function getWorker(){await loadTess();if(!tessW)tessW=await Tesseract.createWorker('eng');clearTimeout(termT);termT=setTimeout(()=>{if(tessW){tessW.terminate();tessW=null}},90000);return tessW}
 async function loadImg(file){const u=URL.createObjectURL(file),im=new Image();im.src=u;await im.decode();return im}
 function cropCanvas(im,y0,y1,maxW){
-  const sw=im.naturalWidth,sy=im.naturalHeight*y0,sh=im.naturalHeight*(y1-y0),k=Math.min((maxW||2200)/sw,2.5);
+  const sw=im.naturalWidth||im.width,ih=im.naturalHeight||im.height,sy=ih*y0,sh=ih*(y1-y0),k=Math.min((maxW||2200)/sw,2.5);
   const c=document.createElement('canvas');c.width=Math.round(sw*k);c.height=Math.max(1,Math.round(sh*k));
   const x=c.getContext('2d');x.filter='grayscale(1) contrast(1.5)';x.drawImage(im,0,sy,sw,sh,0,0,c.width,c.height);
   return c;
@@ -610,17 +624,24 @@ function scanQueries(p){
   if(p.name)q.push(`name:"${p.name}"`);
   return q;
 }
-async function scan(file){
+async function scanFile(file){
+  const m=$('apiMsg');m.className='msg';m.textContent='Preparando a foto…';
+  try{
+    const im=await createImageBitmap(file,{resizeWidth:2400,resizeQuality:'medium'}).catch(()=>loadImg(file));
+    await scanRun({foot:cropCanvas(im,.76,1,2000),head:cropCanvas(im,0,.16,2000),full:()=>cropCanvas(im,0,1,1600)});
+  }catch(e){m.className='msg err';m.textContent='Não consegui abrir a foto ('+e.message+').'}
+}
+async function scanRun(src){
   const m=$('apiMsg');m.className='msg';sid++;
   try{
     m.textContent='Carregando o leitor de texto (na primeira vez pode levar alguns segundos)…';
-    const w=await getWorker(),im=await loadImg(file);
+    const w=await getWorker();
     m.textContent='Lendo a carta…';
     await w.setParameters({tessedit_pageseg_mode:'6'});
-    const foot=(await w.recognize(cropCanvas(im,.76,1))).data.text;
-    const head=(await w.recognize(cropCanvas(im,0,.16))).data.text;
+    const foot=(await w.recognize(src.foot)).data.text;
+    const head=(await w.recognize(src.head)).data.text;
     let full='';
-    if(!/\d{1,3}\s*[\/\\|]\s*\d{2,3}/.test(foot)){await w.setParameters({tessedit_pageseg_mode:'11'});full=(await w.recognize(cropCanvas(im,0,1,1600))).data.text}
+    if(!/\d{1,3}\s*[\/\\|]\s*\d{2,3}/.test(foot)){await w.setParameters({tessedit_pageseg_mode:'11'});full=(await w.recognize(src.full())).data.text}
     $('scanTxt').textContent=`[rodapé]\n${foot}\n[topo]\n${head}`+(full?`\n[carta inteira]\n${full}`:'');$('scanDbg').hidden=false;
     const p=parseScan(foot,head,full);
     if(!p.num&&!p.name){m.className='msg err';m.textContent='Não consegui ler número nem nome. Tente de novo com mais luz, sem reflexo e com a carta inteira na foto. Você também pode buscar manualmente.';return}
@@ -640,8 +661,43 @@ async function scan(file){
     if(results.length===1){picked.add(results[0].key);drawRes()}
   }catch(e){m.className='msg err';m.textContent='Falha no scan ('+e.message+').'}
 }
-$('scanBtn').onclick=()=>$('scanFile').click();
-$('scanFile').onchange=e=>{const f=e.target.files[0];e.target.value='';if(f)scan(f)};
+let camStream=null,camRect=null;
+function stopCam(){if(camStream){camStream.getTracks().forEach(t=>t.stop());camStream=null}$('camV').srcObject=null}
+function layoutGuide(){
+  const v=$('camV');if(!v.videoWidth)return;
+  const cw=v.clientWidth,ch=v.clientHeight,vw=v.videoWidth,vh=v.videoHeight,sc=Math.min(cw/vw,ch/vh),ox=(cw-vw*sc)/2,oy=(ch-vh*sc)/2;
+  let gh=vh*.9,gw=gh*63/88;if(gw>vw*.94){gw=vw*.94;gh=gw*88/63}
+  const gx=(vw-gw)/2,gy=(vh-gh)/2,g=$('camG').style;
+  camRect={x:gx,y:gy,w:gw,h:gh};
+  g.left=ox+gx*sc+'px';g.top=oy+gy*sc+'px';g.width=gw*sc+'px';g.height=gh*sc+'px';
+}
+async function openCam(){
+  const m=$('apiMsg');
+  if(!navigator.mediaDevices||!navigator.mediaDevices.getUserMedia){m.className='msg err';m.textContent='Este navegador não abre a câmera aqui. Use o botão “Usar foto”.';return}
+  try{camStream=await navigator.mediaDevices.getUserMedia({video:{facingMode:{ideal:'environment'},width:{ideal:4096},height:{ideal:4096}},audio:false})}
+  catch(e){m.className='msg err';m.textContent='Não consegui abrir a câmera ('+(e.name||e.message)+'). Permita o uso da câmera ou use o botão “Usar foto”.';return}
+  const v=$('camV');v.srcObject=camStream;$('cam').showModal();
+  try{await v.play()}catch(e){}
+  layoutGuide();
+}
+$('camV').addEventListener('loadedmetadata',layoutGuide);
+window.addEventListener('resize',()=>{if($('cam').open)layoutGuide()});
+$('cam').addEventListener('close',stopCam);
+$('camCancel').onclick=()=>$('cam').close();
+$('camShot').onclick=()=>{
+  const v=$('camV'),r=camRect;if(!r||!v.videoWidth)return;
+  const strip=(y0,y1,maxW)=>{
+    const sh=r.h*(y1-y0),k=Math.min(maxW/r.w,2.5),c=document.createElement('canvas');
+    c.width=Math.round(r.w*k);c.height=Math.max(1,Math.round(sh*k));
+    const x=c.getContext('2d');x.filter='grayscale(1) contrast(1.5)';x.drawImage(v,r.x,r.y+r.h*y0,r.w,sh,0,0,c.width,c.height);return c;
+  };
+  const foot=strip(.78,1,2000),head=strip(0,.14,2000),full=strip(0,1,1600);   // recortes feitos antes de fechar a câmera
+  $('cam').close();
+  scanRun({foot,head,full:()=>full});
+};
+$('scanBtn').onclick=openCam;
+$('scanPick').onclick=()=>$('scanFile').click();
+$('scanFile').onchange=e=>{const f=e.target.files[0];e.target.value='';if(f)scanFile(f)};
 
 function updateSel(){const n=picked.size;$('addSel').disabled=!n;$('addSel').textContent=n?`Adicionar (${n})`:'Adicionar selecionadas'}
 function drawRes(){
