@@ -238,7 +238,9 @@ dialog#cam[open]{display:block}
     <div class="dform">
       <label class="sw"><input type="checkbox" id="dOwn"><span>Já tenho esta carta</span></label>
       <div id="dPhys" class="dform"><label>Condição<select id="dCond"></select></label>
-      <div><div class="msg">Versões que tenho e quantidade de cada uma</div><div id="dVers"></div></div>
+      <div><div class="msg">Versões que tenho e quantidade de cada uma</div><div id="dVers"></div>
+        <div class="msg" id="dVMsg"></div>
+        <div class="row"><button id="dAll">Mostrar todas</button><button id="dRef">Atualizar versões</button></div></div>
       <label>Preço pago<div class="money"><span>R$</span><input id="dPrice" type="number" min="0" step="0.01" inputmode="decimal" placeholder="0,00"></div></label></div>
       <details><summary>Imagem da carta</summary><label>URL da imagem<input id="dUrl" placeholder="https://..."></label></details>
       <div class="msg">As alterações são salvas automaticamente.</div>
@@ -476,7 +478,7 @@ function candidates(){
   return out;
 }
 async function fetchPage(q,pg){
-  const r=await fetch(`https://api.pokemontcg.io/v2/cards?q=${encodeURIComponent(q)}&pageSize=100&page=${pg}&orderBy=set.releaseDate&select=id,name,number,images,set,artist`);
+  const r=await fetch(`https://api.pokemontcg.io/v2/cards?q=${encodeURIComponent(q)}&pageSize=100&page=${pg}&orderBy=set.releaseDate&select=id,name,number,images,set,artist,tcgplayer`);
   if(!r.ok)throw new Error('HTTP '+r.status);
   return r.json();
 }
@@ -526,7 +528,7 @@ async function search(more){
     }
     loaded+=exactN;if(!more||tot)total=tot;
     const seen=new Set(results.map(c=>c.key));
-    data.forEach(c=>{if(seen.has(c.id))return;seen.add(c.id);results.push({key:c.id,name:c.name,set:c.set.name,num:c.number,img:c.images.small,big:c.images.large,date:c.set.releaseDate,alt:mode==='artist'?(norm(c.artist)!==norm(lastArtist)?c.artist:''):(c.artist||'')})});
+    data.forEach(c=>{if(seen.has(c.id))return;seen.add(c.id);results.push({key:c.id,name:c.name,set:c.set.name,num:c.number,img:c.images.small,big:c.images.large,date:c.set.releaseDate,avail:availPtcg(c.tcgplayer),availSrc:'Pokémon TCG API',alt:mode==='artist'?(norm(c.artist)!==norm(lastArtist)?c.artist:''):(c.artist||'')})});
     results.sort((a,b)=>(a.date||'').localeCompare(b.date||'')||String(a.num).localeCompare(String(b.num),undefined,{numeric:true}));
     const alts=mode==='artist'?results.filter(c=>c.alt).length:0;
     m.textContent=`${results.length} cartas encontradas.`+(loaded<total?' Use “Carregar mais” para ver o resto.':'')+(alts?` ${alts} com o nome do ilustrador escrito de forma diferente na base (marcadas nas cartas).`:'')+' Clique nas cartas para selecionar.';
@@ -557,7 +559,7 @@ async function enrich(name,id){
           const si=d.set&&d.set.id;
           if(si&&!dexSets[si])dexSets[si]=dexJson(`https://api.tcgdex.net/v2/en/sets/${encodeURIComponent(si)}`).then(x=>({date:x.releaseDate||'',pocket:!!(x.serie&&x.serie.id==='tcgp')}),()=>({date:'',pocket:false}));
           const ds=si?await dexSets[si]:{date:'',pocket:false};
-          return {key:'dex:'+d.id,name:d.name,set:d.set?d.set.name:'',num:d.localId,img:d.image?d.image+'/low.webp':'',big:d.image?d.image+'/high.webp':'',date:ds.date?ds.date.replace(/-/g,'/'):'9999',pocket:ds.pocket||/^((P-)?[AB]\d+[a-z]?-|P-[AB]-)/i.test(d.id),alt:'',src:'TCGdex'};
+          return {key:'dex:'+d.id,name:d.name,set:d.set?d.set.name:'',num:d.localId,img:d.image?d.image+'/low.webp':'',big:d.image?d.image+'/high.webp':'',date:ds.date?ds.date.replace(/-/g,'/'):'9999',pocket:ds.pocket||/^((P-)?[AB]\d+[a-z]?-|P-[AB]-)/i.test(d.id),alt:'',src:'TCGdex',avail:availDex(d.variants),availSrc:'TCGdex'};
         }catch(e){return null}
       }));
       add.push(...part.filter(Boolean));
@@ -659,7 +661,7 @@ async function scanRun(src){
     const ok=rs.find(r=>r.status==='fulfilled'&&r.value.totalCount>0);
     results=[];picked=new Set();loaded=0;total=0;$('more').hidden=true;
     if(!ok){$('res').innerHTML='';updateSel();m.className='msg err';m.textContent=lido+' Nenhuma carta encontrada na base. Corrija os campos abaixo e busque de novo, ou cadastre manualmente.';return}
-    results=ok.value.data.map(c=>({key:c.id,name:c.name,set:c.set.name,num:c.number,img:c.images.small,big:c.images.large,date:c.set.releaseDate,alt:c.artist||''}));
+    results=ok.value.data.map(c=>({key:c.id,name:c.name,set:c.set.name,num:c.number,img:c.images.small,big:c.images.large,date:c.set.releaseDate,avail:availPtcg(c.tcgplayer),availSrc:'Pokémon TCG API',alt:c.artist||''}));
     results.sort((a,b)=>(a.date||'').localeCompare(b.date||'')||String(a.num).localeCompare(String(b.num),undefined,{numeric:true}));
     m.textContent=lido+` ${results.length} carta(s) encontrada(s). Selecione a correta e adicione.`;
     drawRes();
@@ -719,7 +721,7 @@ $('more').onclick=()=>search(true);
 $('selAll').onclick=()=>{const ks=results.filter(c=>!inSet(c)).map(c=>c.key),all=ks.length&&ks.every(k=>picked.has(k));picked=new Set(all?[]:ks);drawRes()};
 $('addSel').onclick=()=>{
   const s=cur();let n=0;
-  results.filter(c=>picked.has(c.key)&&!inSet(c)).forEach(c=>{s.cards.push({id:uid(),key:c.key,name:c.name,set:c.set,num:c.num,img:c.img,big:c.big,date:c.date,pocket:isPocket(c),owned:false});n++});
+  results.filter(c=>picked.has(c.key)&&!inSet(c)).forEach(c=>{s.cards.push({id:uid(),key:c.key,name:c.name,set:c.set,num:c.num,img:c.img,big:c.big,date:c.date,pocket:isPocket(c),avail:c.avail,availSrc:c.availSrc,owned:false});n++});
   save();render();picked=new Set();drawRes();$('apiMsg').textContent=`${n} carta(s) adicionada(s).`;
 };
 
@@ -744,10 +746,32 @@ const CONDS=['','Mint (M)','Near Mint (NM)','Lightly Played (LP)','Moderately Pl
 const VERS=['Normal','Holo','Reverse Holo','Full Art','Alternate Art','Promo','Primeira edição','Outra'];
 const versOf=c=>c.vers||(c.ver?{[c.ver]:1}:{});
 const versLabel=c=>Object.entries(versOf(c)).map(([n,q])=>q>1?`${n} ×${q}`:n).join(', ');
+const VMAP={normal:'Normal',unlimited:'Normal',holofoil:'Holo',unlimitedHolofoil:'Holo',reverseHolofoil:'Reverse Holo','1stEditionHolofoil':'Primeira edição','1stEditionNormal':'Primeira edição'};
+function availPtcg(t){
+  if(!t||!t.prices)return undefined;
+  const a=new Set(Object.keys(t.prices).map(k=>VMAP[k]).filter(Boolean));
+  return a.size?VERS.filter(n=>a.has(n)):undefined;
+}
+function availDex(v){
+  if(!v)return undefined;
+  const a=[];
+  if(v.normal)a.push('Normal');if(v.holo)a.push('Holo');if(v.reverse)a.push('Reverse Holo');if(v.firstEdition)a.push('Primeira edição');if(v.wPromo)a.push('Promo');
+  return a;
+}
+let dShowAll=false;
+function versNames(c,v){
+  const all=[...VERS,...Object.keys(v).filter(k=>!VERS.includes(k))];
+  return (!c||!c.avail||dShowAll)?all:all.filter(n=>c.avail.includes(n)||n in v||n==='Outra');
+}
+function updVMsg(){
+  const c=dCard();if(!c)return;
+  $('dVMsg').textContent=!c.avail?'Versões existentes desta carta desconhecidas: mostrando todas.':dShowAll?'Mostrando todas as versões.':`Mostrando só as versões que existem para esta carta (fonte: ${c.availSrc||'base de dados'}).`;
+  $('dAll').textContent=dShowAll?'Mostrar só as existentes':'Mostrar todas';$('dAll').hidden=!c.avail;
+}
 function renderVers(v){
-  const names=[...VERS,...Object.keys(v).filter(k=>!VERS.includes(k))];
+  const names=versNames(dCard(),v);
   $('dVers').innerHTML=names.map(n=>{const on=n in v;return `<div class="vrow"><label><input type="checkbox" data-vn="${esc(n)}" ${on?'checked':''}> ${esc(n)}</label><input type="number" min="1" step="1" inputmode="numeric" data-vq="${esc(n)}" value="${v[n]||1}" aria-label="Quantidade de ${esc(n)}" ${on?'':'hidden'}></div>`}).join('')+'<div class="msg" id="dVTot"></div>';
-  updVTot();
+  updVTot();updVMsg();
 }
 function readVers(){
   const vs={};
@@ -757,6 +781,18 @@ function readVers(){
   });
   return vs;
 }
+$('dAll').onclick=()=>{dShowAll=!dShowAll;renderVers(readVers())};
+$('dRef').onclick=async()=>{
+  const c=dCard();if(!c)return;const m=$('dVMsg');m.textContent='Consultando a internet…';
+  try{
+    let av,src;const k=c.key||'';
+    if(k.startsWith('dex:')){const d=await dexJson(`https://api.tcgdex.net/v2/en/cards/${encodeURIComponent(k.slice(4))}`);av=availDex(d.variants);src='TCGdex'}
+    else if(k.includes('-')){const j=await dexJson(`https://api.pokemontcg.io/v2/cards/${encodeURIComponent(k)}?select=tcgplayer`);av=availPtcg(j.data&&j.data.tcgplayer);src='Pokémon TCG API'}
+    else{m.textContent='Esta carta foi cadastrada manualmente, então não há como consultar as versões.';return}
+    if(!av){m.textContent='A base de dados não informa as versões desta carta. Mostrando todas.';return}
+    c.avail=av;c.availSrc=src;save();renderVers(readVers());
+  }catch(e){m.textContent='Não consegui consultar agora ('+e.message+').'}
+};
 function updVTot(){const n=Object.values(readVers()).reduce((a,b)=>a+b,0);$('dVTot').textContent=n?`Total: ${n} carta${n>1?'s':''}`:''}
 $('dCond').innerHTML=CONDS.map(v=>`<option value="${v}">${v||'Não informada'}</option>`).join('');
 const money=v=>Number(v).toLocaleString('pt-BR',{style:'currency',currency:'BRL'});
@@ -777,7 +813,7 @@ function openDet(id){
   dId=id;const c=dCard();$('dPhys').hidden=isPocket(c);
   $('dName').textContent=c.name;$('dSub').textContent=`${c.set||''} ${c.num?'#'+c.num:''}`;
   $('dImg').src=c.img||'';$('dOwn').checked=!!c.owned;
-  $('dCond').value=c.cond||'';renderVers(versOf(c));
+  $('dCond').value=c.cond||'';dShowAll=false;renderVers(versOf(c));
   $('dPrice').value=c.price>0?c.price:'';$('dUrl').value=c.img||'';
   $('det').showModal();
 }

@@ -1,4 +1,4 @@
-const VERSION='v13';
+const VERSION='v14';
 const SHELL='shell-'+VERSION, IMGS='imgs-v1';
 const FILES=['./','index.html','manifest.json','icon-192.png','icon-512.png','icon-maskable-512.png'];
 const MAX_IMGS=600;
