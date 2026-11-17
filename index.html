@@ -129,6 +129,9 @@ dialog#cam[open]{display:block}
 .dform .vrow label{flex:1;display:flex;flex-direction:row;align-items:center;gap:8px;color:var(--ink);font-size:15px;cursor:pointer}
 .vrow input[type=checkbox]{width:18px;height:18px;min-height:0;padding:0;flex:none}
 .vrow input[type=number]{width:76px;min-height:34px;padding:4px 8px}
+.icons{display:flex;flex-wrap:wrap;gap:6px;margin:6px 0}
+.icons .ico{min-height:0;width:42px;height:42px;padding:0;font-size:22px;line-height:1}
+.icons .ico.on{border-color:var(--acc);box-shadow:inset 0 0 0 1px var(--acc)}
 .sech{grid-column:1/-1;margin:12px 0 0;font:bold 15px/1.3 var(--serif);color:var(--acc)}
 .sech:first-child{margin-top:0}
 #lb{position:fixed;inset:0;background:#000;z-index:50;display:flex;align-items:center;justify-content:center}
@@ -150,6 +153,8 @@ dialog#cam[open]{display:block}
       <button id="newSet">Novo master set</button>
       <button id="newFolder">Nova pasta</button>
       <button id="mvCur">Mover set atual para pasta</button>
+      <button id="edCur">Editar set atual (nome e ícone)</button>
+      <button id="edCurF">Editar pasta do set atual</button>
       <button id="orgBtn">Organizar pastas e sets</button>
       <button id="delSet">Excluir set atual</button>
       <button id="expBtn">Exportar backup</button>
@@ -207,6 +212,15 @@ dialog#cam[open]{display:block}
   <div id="camG"></div>
   <div id="camHint">Encaixe a carta no quadro, com o rodapé (número) bem visível</div>
   <div id="camBar"><button id="camCancel">Cancelar</button><button class="p" id="camShot">Capturar</button></div>
+</dialog>
+<dialog id="edDlg">
+  <div class="dhead"><h2 id="edTitle">Editar</h2><button class="ic" id="edClose" aria-label="Fechar">×</button></div>
+  <div class="dform">
+    <label>Nome<input id="edName"></label>
+    <div><div class="msg">Ícone</div><div id="edIcons" class="icons"></div>
+      <div class="row"><input id="edIcon" maxlength="12" placeholder="Ou cole/digite um emoji" aria-label="Ícone personalizado" style="max-width:230px"><button id="edNoIcon" type="button"></button></div></div>
+  </div>
+  <div class="dfoot"><span class="sp"></span><button class="p" id="edOk">Salvar</button></div>
 </dialog>
 <dialog id="mvDlg">
   <div class="dhead"><h2 id="mvTitle"></h2><button class="ic" id="mvClose" aria-label="Fechar">×</button></div>
@@ -281,24 +295,26 @@ function gridHtml(list,canDrag){
   return (ph.length?`<h3 class="sech">Cartas físicas (TCG) · ${ph.length}</h3>`+ph.map(h).join(''):'')+`<h3 class="sech">TCG Pocket (digital) · ${po.length}</h3>`+po.map(h).join('');
 }
 function findCard(id){for(const s of S.sets){const c=s.cards.find(x=>x.id===id);if(c)return {s,c}}return null}
+const fIcon=f=>f.icon||'📁';
+const sName=x=>(x.icon?x.icon+' ':'')+x.name;
 const rootSets=()=>S.sets.filter(x=>!S.folders.some(f=>f.id===x.folder));
 function setOptions(sel){
-  const o=x=>`<option value="${x.id}" ${x.id===sel?'selected':''}>${esc(x.name)}</option>`;
-  return S.folders.map(f=>{const ss=S.sets.filter(x=>x.folder===f.id);return ss.length?`<optgroup label="📁 ${esc(f.name)}">${ss.map(o).join('')}</optgroup>`:''}).join('')+rootSets().map(o).join('');
+  const o=x=>`<option value="${x.id}" ${x.id===sel?'selected':''}>${esc(sName(x))}</option>`;
+  return S.folders.map(f=>{const ss=S.sets.filter(x=>x.folder===f.id);return ss.length?`<optgroup label="${esc(fIcon(f))} ${esc(f.name)}">${ss.map(o).join('')}</optgroup>`:''}).join('')+rootSets().map(o).join('');
 }
 function setBoxHtml(x,canDrag){
   const st=stats(x.cards),open=!!x.open,list=open?visible(x):[];
   return `<section class="setbox" data-sid="${x.id}"><div class="sethead">
-    <button class="tog" data-tog="${x.id}" aria-expanded="${open}"><span class="chev">${open?'▾':'▸'}</span>${esc(x.name)}</button>
+    <button class="tog" data-tog="${x.id}" aria-expanded="${open}"><span class="chev">${open?'▾':'▸'}</span>${esc(sName(x))}</button>
     <span class="sinfo">${st.own}/${st.tot} (${Math.round(st.pct)}%)${st.pt?` · Pocket ${st.po}/${st.pt}`:''}${st.spent?' · '+money(st.spent):''}</span>
     <div class="track"><div class="fill" style="width:${st.pct}%"></div></div>
-    <button data-add="${x.id}">+ Cartas</button><button data-mv="${x.id}" title="Mover para outra pasta" aria-label="Mover para outra pasta">📁 Mover</button><button data-dels="${x.id}" aria-label="Excluir set" title="Excluir set">×</button></div>
+    <button data-add="${x.id}">+ Cartas</button><button data-sedit="${x.id}" title="Editar nome e ícone" aria-label="Editar nome e ícone">✎</button><button data-mv="${x.id}" title="Mover para outra pasta" aria-label="Mover para outra pasta">📁 Mover</button><button data-dels="${x.id}" aria-label="Excluir set" title="Excluir set">×</button></div>
     <div class="grid" ${open?'':'hidden'}>${open?(list.length?gridHtml(list,canDrag):`<div class="empty">${st.all?'Nenhuma carta neste filtro.':'Nenhuma carta ainda. Clique em “+ Cartas”.'}</div>`):''}</div></section>`;
 }
 function render(){
   const multi=S.view==='multi';syncSeg();$('crumb').textContent='';
   $('viewSel').value=multi?'multi':'one';
-  $('setSel').hidden=multi;$('delSet').hidden=multi;$('mvCur').hidden=multi||!S.sets.length;$('expAll').hidden=!multi;$('colAll').hidden=!multi;
+  $('setSel').hidden=multi;$('delSet').hidden=multi;$('mvCur').hidden=multi||!S.sets.length;$('edCur').hidden=multi||!S.sets.length;$('edCurF').hidden=multi||!(cur()&&S.folders.some(f=>f.id===cur().folder));$('expAll').hidden=!multi;$('colAll').hidden=!multi;
   $('setSel').innerHTML=setOptions(S.cur)||'<option>Nenhum set</option>';
   const g=$('grid'),m=$('multi');g.hidden=multi;m.hidden=!multi;
   const f=$('filter').value,canDrag=$('sort').value==='manual'&&f==='all';
@@ -311,10 +327,10 @@ function render(){
     const fs=S.folders.map(f=>{
       const ss=S.sets.filter(x=>x.folder===f.id),st=stats(ss.flatMap(x=>x.cards)),open=f.open!==false;
       return `<section class="folderbox"><div class="sethead">
-        <button class="tog" data-ftog="${f.id}" aria-expanded="${open}"><span class="chev">${open?'▾':'▸'}</span>📁 ${esc(f.name)}</button>
+        <button class="tog" data-ftog="${f.id}" aria-expanded="${open}"><span class="chev">${open?'▾':'▸'}</span>${esc(fIcon(f))} ${esc(f.name)}</button>
         <span class="sinfo">${ss.length} sets · ${st.own}/${st.tot}${st.pt?` · Pocket ${st.po}/${st.pt}`:''}</span>
         <div class="track"><div class="fill" style="width:${st.pct}%"></div></div>
-        <button data-fadd="${f.id}">+ Set</button><button data-fexist="${f.id}">+ Existente</button></div>
+        <button data-fedit="${f.id}" title="Editar nome e ícone" aria-label="Editar nome e ícone">✎</button><button data-fadd="${f.id}">+ Set</button><button data-fexist="${f.id}">+ Existente</button></div>
         <div class="fbody" ${open?'':'hidden'}>${open?(ss.length?ss.map(x=>setBoxHtml(x,canDrag)).join(''):'<div class="empty">Pasta vazia. Clique em “+ Set”.</div>'):''}</div></section>`;
     }).join('');
     const rt=rootSets();
@@ -322,7 +338,7 @@ function render(){
     return;
   }
   const x=cur(),st=stats(x.cards),list=visible(x),fo=S.folders.find(y=>y.id===x.folder);
-  $('crumb').textContent=fo?`${fo.name} › ${x.name}`:x.name;
+  $('crumb').textContent=fo?`${fIcon(fo)} ${fo.name} › ${sName(x)}`:sName(x);
   $('progTxt').textContent=`${st.own} de ${st.tot} cartas (${Math.round(st.pct)}%)`+(st.pt?` · TCG Pocket: ${st.po} de ${st.pt}`:'')+(st.spent?` · Investido: ${money(st.spent)}`:'');
   $('fill').style.width=st.pct+'%';
   g.innerHTML=list.length?gridHtml(list,canDrag):`<div class="empty">${st.all?'Nenhuma carta neste filtro.':'Nenhuma carta ainda. Clique em “Adicionar cartas”.'}</div>`;
@@ -333,6 +349,10 @@ $('area').addEventListener('click',e=>{
   if(e.target.closest('[data-newset]')){$('newSet').click();return}
   const ft=e.target.closest('[data-ftog]');
   if(ft){const f=S.folders.find(y=>y.id===ft.dataset.ftog);f.open=!(f.open!==false);save();render();return}
+  const fe2=e.target.closest('[data-fedit]');
+  if(fe2){openEdit('folder',fe2.dataset.fedit);return}
+  const se2=e.target.closest('[data-sedit]');
+  if(se2){openEdit('set',se2.dataset.sedit);return}
   const mv=e.target.closest('[data-mv]');
   if(mv){openMove(mv.dataset.mv);return}
   const fe=e.target.closest('[data-fexist]');
@@ -358,7 +378,7 @@ $('colAll').onclick=()=>{S.folders.forEach(f=>f.open=false);S.sets.forEach(x=>x.
 $('setSel').onchange=e=>{S.cur=e.target.value;save();render()};
 $('filter').onchange=render;$('sort').onchange=render;
 function openNewSet(fid){
-  $('nsFolder').innerHTML='<option value="">Sem pasta</option>'+S.folders.map(f=>`<option value="${f.id}">${esc(f.name)}</option>`).join('');
+  $('nsFolder').innerHTML='<option value="">Sem pasta</option>'+S.folders.map(f=>`<option value="${f.id}">${esc(fIcon(f))} ${esc(f.name)}</option>`).join('');
   $('nsFolderRow').hidden=!S.folders.length;
   $('nsFolder').value=fid||(cur()&&cur().folder)||'';
   $('nsName').value='';$('nsDlg').showModal();$('nsName').focus();
@@ -378,13 +398,39 @@ function newFolder(){
 $('newSet').onclick=()=>openNewSet();$('newFolder').onclick=newFolder;
 $('nsOk').onclick=createSet;$('nsClose').onclick=()=>$('nsDlg').close();
 $('nsName').onkeydown=e=>{if(e.key==='Enter')createSet()};
+const ICONS=['📁','📂','🗂️','⭐','🏆','💎','🎨','✏️','🖌️','🎴','📚','🔥','❄️','⚡','🌿','🐉','🌙','☀️','❤️','🎮','👑','🦋'];
+let ed=null;
+const edItem=()=>ed&&(ed.kind==='folder'?S.folders.find(f=>f.id===ed.id):S.sets.find(x=>x.id===ed.id));
+function markIcon(){const v=$('edIcon').value.trim();document.querySelectorAll('#edIcons .ico').forEach(b=>b.classList.toggle('on',b.dataset.ic===v))}
+function openEdit(kind,id){
+  ed={kind,id};const x=edItem();if(!x)return;
+  $('edTitle').textContent=kind==='folder'?'Editar pasta':'Editar master set';
+  $('edName').value=x.name;$('edIcon').value=x.icon||'';
+  $('edNoIcon').textContent=kind==='folder'?'Padrão (📁)':'Sem ícone';
+  $('edIcons').innerHTML=ICONS.map(i=>`<button type="button" class="ico" data-ic="${i}">${i}</button>`).join('');
+  markIcon();$('edDlg').showModal();$('edName').focus();
+}
+function saveEdit(){
+  const x=edItem(),n=$('edName').value.trim();if(!x)return;
+  if(!n){$('edName').focus();return}
+  x.name=n;const ic=Array.from($('edIcon').value.trim()).slice(0,12).join('');
+  if(ic)x.icon=ic;else delete x.icon;
+  save();render();$('edDlg').close();if($('orgDlg').open)orgRender();
+}
+$('edIcons').onclick=e=>{const b=e.target.closest('.ico');if(b){$('edIcon').value=b.dataset.ic;markIcon()}};
+$('edIcon').oninput=markIcon;
+$('edNoIcon').onclick=()=>{$('edIcon').value='';markIcon()};
+$('edOk').onclick=saveEdit;$('edClose').onclick=()=>$('edDlg').close();
+$('edName').onkeydown=e=>{if(e.key==='Enter')saveEdit()};
+$('edCur').onclick=()=>{if(cur())openEdit('set',cur().id)};
+$('edCurF').onclick=()=>{const c=cur();if(c&&c.folder)openEdit('folder',c.folder)};
 let mvId=null,adF=null;
 function openMove(id){
   const x=S.sets.find(y=>y.id===id);if(!x)return;mvId=id;
   const hasF=S.folders.some(f=>f.id===x.folder);
   $('mvTitle').textContent=`Mover “${x.name}” para…`;
   $('mvList').innerHTML=`<button class="mvopt" data-mf="" ${!hasF?'disabled':''}>Sem pasta${!hasF?' (atual)':''}</button>`
-    +S.folders.map(f=>`<button class="mvopt" data-mf="${f.id}" ${f.id===x.folder?'disabled':''}>📁 ${esc(f.name)}${f.id===x.folder?' (atual)':''}</button>`).join('')
+    +S.folders.map(f=>`<button class="mvopt" data-mf="${f.id}" ${f.id===x.folder?'disabled':''}>${esc(fIcon(f))} ${esc(f.name)}${f.id===x.folder?' (atual)':''}</button>`).join('')
     +'<button class="mvopt" data-mnew>+ Nova pasta…</button>';
   $('mvDlg').showModal();
 }
@@ -402,7 +448,7 @@ function openAddExisting(fid){
   const f=S.folders.find(y=>y.id===fid);if(!f)return;adF=fid;
   $('adTitle').textContent=`Adicionar sets à pasta “${f.name}”`;
   const c=S.sets.filter(x=>x.folder!==fid);
-  $('adList').innerHTML=c.length?c.map(x=>{const fo=S.folders.find(y=>y.id===x.folder);return `<label class="orow"><input type="checkbox" data-adx="${x.id}"><span>${esc(x.name)} <small class="msg">${x.cards.length} cartas · ${fo?'em 📁 '+esc(fo.name):'sem pasta'}</small></span></label>`}).join(''):'<div class="empty">Não há outros sets para adicionar. Crie um novo com “+ Set”.</div>';
+  $('adList').innerHTML=c.length?c.map(x=>{const fo=S.folders.find(y=>y.id===x.folder);return `<label class="orow"><input type="checkbox" data-adx="${x.id}"><span>${esc(sName(x))} <small class="msg">${x.cards.length} cartas · ${fo?'em '+esc(fIcon(fo))+' '+esc(fo.name):'sem pasta'}</small></span></label>`}).join(''):'<div class="empty">Não há outros sets para adicionar. Crie um novo com “+ Set”.</div>';
   $('adOk').disabled=true;$('adOk').textContent='Adicionar';$('adDlg').showModal();
 }
 $('adList').addEventListener('change',()=>{const n=$('adList').querySelectorAll('input:checked').length;$('adOk').disabled=!n;$('adOk').textContent=n?`Adicionar (${n})`:'Adicionar'});
@@ -412,13 +458,13 @@ $('adOk').onclick=()=>{
   save();render();$('adDlg').close();if($('orgDlg').open)orgRender();
 };
 $('adClose').onclick=()=>$('adDlg').close();
-const fOpts=sel=>'<option value="">Sem pasta</option>'+S.folders.map(f=>`<option value="${f.id}" ${f.id===sel?'selected':''}>${esc(f.name)}</option>`).join('');
-const srow=x=>`<div class="orow srow"><span>${esc(x.name)} <small class="msg">${x.cards.length} cartas</small></span><span class="sp"></span><select data-omv="${x.id}" aria-label="Mover para pasta">${fOpts(x.folder)}</select><button data-osren="${x.id}">Renomear</button><button data-osdel="${x.id}">Excluir</button></div>`;
+const fOpts=sel=>'<option value="">Sem pasta</option>'+S.folders.map(f=>`<option value="${f.id}" ${f.id===sel?'selected':''}>${esc(fIcon(f))} ${esc(f.name)}</option>`).join('');
+const srow=x=>`<div class="orow srow"><span>${esc(sName(x))} <small class="msg">${x.cards.length} cartas</small></span><span class="sp"></span><select data-omv="${x.id}" aria-label="Mover para pasta">${fOpts(x.folder)}</select><button data-osren="${x.id}">Editar</button><button data-osdel="${x.id}">Excluir</button></div>`;
 function orgRender(){
   let h='';
   S.folders.forEach(f=>{
     const ss=S.sets.filter(x=>x.folder===f.id);
-    h+=`<div class="orow frow"><b>📁 ${esc(f.name)}</b><small class="msg">${ss.length} sets</small><span class="sp"></span><button data-ofadd="${f.id}">+ Set</button><button data-ofexist="${f.id}">+ Existente</button><button data-ofren="${f.id}">Renomear</button><button data-ofdel="${f.id}">Excluir pasta</button></div>`+(ss.map(srow).join('')||'<div class="msg" style="padding:6px 22px">Pasta vazia</div>');
+    h+=`<div class="orow frow"><b>${esc(fIcon(f))} ${esc(f.name)}</b><small class="msg">${ss.length} sets</small><span class="sp"></span><button data-ofadd="${f.id}">+ Set</button><button data-ofexist="${f.id}">+ Existente</button><button data-ofren="${f.id}">Editar</button><button data-ofdel="${f.id}">Excluir pasta</button></div>`+(ss.map(srow).join('')||'<div class="msg" style="padding:6px 22px">Pasta vazia</div>');
   });
   const r=rootSets();
   if(r.length)h+=(S.folders.length?'<div class="orow frow"><b>Sem pasta</b></div>':'')+r.map(srow).join('');
@@ -432,9 +478,9 @@ $('orgTree').addEventListener('click',e=>{
   const done=()=>{save();render();orgRender()};
   if(d.ofadd){openNewSet(d.ofadd);return}
   if(d.ofexist){openAddExisting(d.ofexist);return}
-  if(d.ofren){const f=S.folders.find(y=>y.id===d.ofren),n=prompt('Novo nome da pasta:',f.name);if(n&&n.trim()){f.name=n.trim();done()}return}
+  if(d.ofren){openEdit('folder',d.ofren);return}
   if(d.ofdel){const f=S.folders.find(y=>y.id===d.ofdel);if(confirm(`Excluir a pasta "${f.name}"? Os sets dentro dela não serão apagados: ficam sem pasta.`)){S.sets.forEach(x=>{if(x.folder===f.id)delete x.folder});S.folders=S.folders.filter(y=>y!==f);done()}return}
-  if(d.osren){const x=S.sets.find(y=>y.id===d.osren),n=prompt('Novo nome do set:',x.name);if(n&&n.trim()){x.name=n.trim();done()}return}
+  if(d.osren){openEdit('set',d.osren);return}
   if(d.osdel){const x=S.sets.find(y=>y.id===d.osdel);if(confirm(`Excluir o set "${x.name}" e todas as suas cartas?`)){S.sets=S.sets.filter(y=>y!==x);if(S.cur===x.id)S.cur=S.sets[0]?S.sets[0].id:null;done()}return}
 });
 $('orgTree').addEventListener('change',e=>{
