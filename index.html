@@ -185,6 +185,7 @@ dialog#cam[open]{display:block}
     <div class="row"><input id="q" placeholder="Ex.: Mitsuhiro Arita" aria-label="Busca"><input id="qn" placeholder="Nº (opcional)" aria-label="Número da carta" inputmode="text" hidden><button class="p" id="go">Buscar</button></div>
     <div class="row"><button id="scanBtn">📷 Escanear carta</button><button id="scanPick">🖼 Usar foto</button><input type="file" id="scanFile" accept="image/*" hidden><span class="msg">Segure o celular na vertical, com a carta inteira em pé, de frente e com boa luz.</span></div>
     <div class="msg" id="apiMsg"></div>
+    <div class="row"><button id="netStop" hidden>⏹ Parar de tentar</button></div>
     <details id="scanDbg" hidden><summary>Texto lido pela câmera</summary><pre id="scanTxt" style="white-space:pre-wrap;font-size:12px;color:var(--mute);margin:6px 0"></pre></details>
     <div class="res" id="res"></div>
     <div class="dfoot"><button id="selAll">Marcar todas</button><button id="more" hidden>Carregar mais</button><span class="sp"></span><button class="p" id="addSel" disabled>Adicionar selecionadas</button></div>
@@ -458,7 +459,8 @@ function openAdd(){
 }
 $('addBtn').onclick=openAdd;
 $('tgt').onchange=e=>{S.cur=e.target.value;save();render();drawRes()};
-$('close').onclick=()=>dlg.close();
+$('close').onclick=()=>{netTok++;dlg.close()};
+$('netStop').onclick=()=>{netTok++;$('netStop').hidden=true};
 function tab(api){$('pApi').hidden=!api;$('pMan').hidden=api;$('tApi').classList.toggle('on',api);$('tMan').classList.toggle('on',!api)}
 $('tApi').onclick=()=>tab(true);$('tMan').onclick=()=>tab(false);
 $('mode').onchange=()=>{const m=$('mode').value;$('qn').hidden=m!=='set';$('q').placeholder=m==='artist'?'Ex.: Mitsuhiro Arita':m==='name'?'Ex.: Pikachu':'Coleção (nome ou código). Ex.: Base Set, sv3pt5'};
@@ -477,26 +479,39 @@ function candidates(){
   sets.forEach(sq=>nums.forEach(nn=>out.push(nn?`${sq} number:"${nn}"`:sq)));
   return out;
 }
+let netTok=0;
+const sleepC=(ms,tok)=>new Promise(res=>{const t0=Date.now(),iv=setInterval(()=>{if(tok!==netTok||Date.now()-t0>=ms){clearInterval(iv);res()}},200)});
+async function getJson(url,o){
+  const max=(o&&o.max)||Infinity,ui=!!(o&&o.ui),tok=netTok;let n=0,err='';
+  for(;;){
+    if(tok!==netTok)throw new Error('cancelado');
+    n++;
+    const ctl=new AbortController(),t=setTimeout(()=>ctl.abort(),Math.min(20000+n*5000,45000));
+    try{
+      const r=await fetch(url,{signal:ctl.signal});
+      if(r.ok){const j=await r.json();clearTimeout(t);return j}
+      clearTimeout(t);
+      if(r.status>=400&&r.status<500&&r.status!==429&&r.status!==408)throw Object.assign(new Error('HTTP '+r.status),{fatal:true});
+      err='HTTP '+r.status;
+    }catch(e){
+      clearTimeout(t);
+      if(e.fatal)throw e;
+      err=!navigator.onLine?'sem internet':e.name==='AbortError'?'tempo esgotado':'sem resposta';
+    }
+    if(n>=max)throw new Error(err);
+    const wait=Math.min(1500*Math.pow(1.6,n-1),10000);
+    if(ui){const m=$('apiMsg');m.className='msg';m.textContent=`A API não respondeu (${err}). Tentativa ${n+1} em ${Math.ceil(wait/1000)}s… Toque em “Parar de tentar” para cancelar.`}
+    await sleepC(wait,tok);
+  }
+}
 async function fetchPage(q,pg){
-  const r=await fetch(`https://api.pokemontcg.io/v2/cards?q=${encodeURIComponent(q)}&pageSize=100&page=${pg}&orderBy=set.releaseDate&select=id,name,number,images,set,artist,tcgplayer`);
-  if(!r.ok)throw new Error('HTTP '+r.status);
-  return r.json();
+  return getJson(`https://api.pokemontcg.io/v2/cards?q=${encodeURIComponent(q)}&pageSize=100&page=${pg}&orderBy=set.releaseDate&select=id,name,number,images,set,artist,tcgplayer`,{ui:true});
 }
-const norm=t=>String(t||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().replace(/[^a-z0-9 ]/g,' ').replace(/\s+/g,' ').trim();
-function lev(a,b){const m=a.length,n=b.length,d=Array.from({length:m+1},(_,i)=>[i,...Array(n).fill(0)]);for(let j=1;j<=n;j++)d[0][j]=j;for(let i=1;i<=m;i++)for(let j=1;j<=n;j++)d[i][j]=Math.min(d[i-1][j]+1,d[i][j-1]+1,d[i-1][j-1]+(a[i-1]===b[j-1]?0:1));return d[m][n]}
-function similar(x,y){
-  const a=norm(x),b=norm(y);if(!a||!b)return false;
-  const tol=Math.max(2,Math.round(b.length*.15)),r=b.split(' ').reverse().join(' ');
-  return a===b||lev(a,b)<=tol||lev(a,r)<=tol;
-}
-function fuzzyQ(v){
-  const w=norm(v).split(' ').filter(x=>x.length>1);
-  if(!w.length)return '';
-  const p=x=>`artist:${x.slice(0,3)}*`;
-  return w.length>1?`${p(w[0])} ${p(w[w.length-1])}`:p(w[0]);
-}
-let lastArtist='',loaded=0,total=0;
 async function search(more){
+  netTok++;$('netStop').hidden=false;
+  try{await searchInner(more)}finally{$('netStop').hidden=true}
+}
+async function searchInner(more){
   const m=$('apiMsg');m.className='msg';
   const mode=$('mode').value;
   let cs=[];
@@ -535,13 +550,13 @@ async function search(more){
     $('more').hidden=loaded>=total;
     drawRes();
     if(mode==='artist'&&!more)enrich(lastArtist,sid);
-  }catch(e){m.className='msg err';m.textContent='Falha na busca ('+e.message+'). Verifique a internet e tente de novo; a API às vezes demora.'}
+  }catch(e){if(e.message==='cancelado'){m.className='msg';m.textContent='Busca interrompida.';return}m.className='msg err';m.textContent='Falha na busca ('+e.message+').'}
 }
 let sid=0;
 const sig=c=>norm(c.name)+'|'+(parseInt(c.num,10)||norm(c.num));
 function inSet(c){return cur().cards.some(x=>x.key===c.key||sig(x)===sig(c))}
 const dexSets={};
-async function dexJson(u){const r=await fetch(u);if(!r.ok)throw new Error('HTTP '+r.status);return r.json()}
+async function dexJson(u){return getJson(u,{max:4})}
 async function enrich(name,id){
   const m=$('apiMsg'),base=' Consultando a segunda base (TCGdex)…';
   m.textContent+=base;
@@ -639,7 +654,7 @@ async function scanFile(file){
   }catch(e){m.className='msg err';m.textContent='Não consegui abrir a foto ('+e.message+').'}
 }
 async function scanRun(src){
-  const m=$('apiMsg');m.className='msg';sid++;
+  const m=$('apiMsg');m.className='msg';sid++;netTok++;$('netStop').hidden=false;
   try{
     m.textContent='Carregando o leitor de texto (na primeira vez pode levar alguns segundos)…';
     const w=await getWorker();
@@ -658,6 +673,7 @@ async function scanRun(src){
     else if(p.name){document.querySelector('#modeSeg [data-m=name]').click();$('q').value=p.name}
     m.textContent=lido+' Buscando…';
     const qs=scanQueries(p),rs=await Promise.allSettled(qs.map(q=>fetchPage(q,1)));
+    if(rs.length&&rs.every(r=>r.status==='rejected'))throw rs[0].reason;
     const ok=rs.find(r=>r.status==='fulfilled'&&r.value.totalCount>0);
     results=[];picked=new Set();loaded=0;total=0;$('more').hidden=true;
     if(!ok){$('res').innerHTML='';updateSel();m.className='msg err';m.textContent=lido+' Nenhuma carta encontrada na base. Corrija os campos abaixo e busque de novo, ou cadastre manualmente.';return}
@@ -666,7 +682,7 @@ async function scanRun(src){
     m.textContent=lido+` ${results.length} carta(s) encontrada(s). Selecione a correta e adicione.`;
     drawRes();
     if(results.length===1){picked.add(results[0].key);drawRes()}
-  }catch(e){m.className='msg err';m.textContent='Falha no scan ('+e.message+').'}
+  }catch(e){if(e.message==='cancelado'){m.className='msg';m.textContent='Busca interrompida.';return}m.className='msg err';m.textContent='Falha no scan ('+e.message+').'}finally{$('netStop').hidden=true}
 }
 let camStream=null,camRect=null;
 function stopCam(){if(camStream){camStream.getTracks().forEach(t=>t.stop());camStream=null}$('camV').srcObject=null}
