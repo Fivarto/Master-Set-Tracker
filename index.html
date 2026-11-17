@@ -118,6 +118,17 @@ details summary{cursor:pointer;color:var(--mute);font-size:13px;margin-bottom:6p
 #mvList,#adList{overflow:auto;max-height:55vh}
 label.orow{cursor:pointer}
 .orow input[type=checkbox]{min-height:0;width:18px;height:18px;padding:0;flex:none}
+dialog#cam{padding:0;border:0;border-radius:0;margin:0;width:100vw;height:100vh;height:100dvh;max-width:none;max-height:none;background:#000;overflow:hidden}
+dialog#cam[open]{display:block}
+#camV{position:absolute;inset:0;width:100%;height:100%;object-fit:contain;background:#000}
+#camG{position:absolute;border:3px solid var(--acc);border-radius:12px;box-shadow:0 0 0 9999px rgba(0,0,0,.5);pointer-events:none}
+#camHint{position:absolute;top:calc(12px + env(safe-area-inset-top,0px));left:12px;right:12px;text-align:center;color:#fff;font-size:14px;text-shadow:0 1px 4px #000}
+#camBar{position:absolute;bottom:calc(16px + env(safe-area-inset-bottom,0px));left:0;right:0;display:flex;gap:14px;justify-content:center}
+#camBar button{min-width:130px;min-height:48px;font-size:16px}
+.dform .vrow{display:flex;align-items:center;gap:10px;padding:3px 0}
+.dform .vrow label{flex:1;display:flex;flex-direction:row;align-items:center;gap:8px;color:var(--ink);font-size:15px;cursor:pointer}
+.vrow input[type=checkbox]{width:18px;height:18px;min-height:0;padding:0;flex:none}
+.vrow input[type=number]{width:76px;min-height:34px;padding:4px 8px}
 .sech{grid-column:1/-1;margin:12px 0 0;font:bold 15px/1.3 var(--serif);color:var(--acc)}
 .sech:first-child{margin-top:0}
 #lb{position:fixed;inset:0;background:#000;z-index:50;display:flex;align-items:center;justify-content:center}
@@ -172,7 +183,9 @@ label.orow{cursor:pointer}
     <div class="seg" id="modeSeg"><button data-m="artist" class="on">Ilustrador</button><button data-m="name">Nome da carta</button><button data-m="set">Coleção / nº</button></div>
     <select id="mode" hidden><option value="artist"></option><option value="name"></option><option value="set"></option></select>
     <div class="row"><input id="q" placeholder="Ex.: Mitsuhiro Arita" aria-label="Busca"><input id="qn" placeholder="Nº (opcional)" aria-label="Número da carta" inputmode="text" hidden><button class="p" id="go">Buscar</button></div>
+    <div class="row"><button id="scanBtn">📷 Escanear carta</button><button id="scanPick">🖼 Usar foto</button><input type="file" id="scanFile" accept="image/*" hidden><span class="msg">Segure o celular na vertical, com a carta inteira em pé, de frente e com boa luz.</span></div>
     <div class="msg" id="apiMsg"></div>
+    <details id="scanDbg" hidden><summary>Texto lido pela câmera</summary><pre id="scanTxt" style="white-space:pre-wrap;font-size:12px;color:var(--mute);margin:6px 0"></pre></details>
     <div class="res" id="res"></div>
     <div class="dfoot"><button id="selAll">Marcar todas</button><button id="more" hidden>Carregar mais</button><span class="sp"></span><button class="p" id="addSel" disabled>Adicionar selecionadas</button></div>
   </div>
@@ -188,6 +201,12 @@ label.orow{cursor:pointer}
   </div>
 </dialog>
 
+<dialog id="cam">
+  <video id="camV" playsinline muted autoplay></video>
+  <div id="camG"></div>
+  <div id="camHint">Encaixe a carta no quadro, com o rodapé (número) bem visível</div>
+  <div id="camBar"><button id="camCancel">Cancelar</button><button class="p" id="camShot">Capturar</button></div>
+</dialog>
 <dialog id="mvDlg">
   <div class="dhead"><h2 id="mvTitle"></h2><button class="ic" id="mvClose" aria-label="Fechar">×</button></div>
   <div id="mvList"></div>
@@ -218,7 +237,8 @@ label.orow{cursor:pointer}
     <div class="dimg"><div class="slot"><img id="dImg" alt=""></div><button id="dFull">⤢ Tela cheia</button></div>
     <div class="dform">
       <label class="sw"><input type="checkbox" id="dOwn"><span>Já tenho esta carta</span></label>
-      <div id="dPhys" class="dform"><div class="two"><label>Condição<select id="dCond"></select></label><label>Versão<select id="dVer"></select></label></div>
+      <div id="dPhys" class="dform"><label>Condição<select id="dCond"></select></label>
+      <div><div class="msg">Versões que tenho e quantidade de cada uma</div><div id="dVers"></div></div>
       <label>Preço pago<div class="money"><span>R$</span><input id="dPrice" type="number" min="0" step="0.01" inputmode="decimal" placeholder="0,00"></div></label></div>
       <details><summary>Imagem da carta</summary><label>URL da imagem<input id="dUrl" placeholder="https://..."></label></details>
       <div class="msg">As alterações são salvas automaticamente.</div>
@@ -245,7 +265,7 @@ function cardHtml(c,canDrag){
   return `<div class="card ${c.owned?'own':''}" tabindex="0" role="button" aria-pressed="${!!c.owned}" data-id="${c.id}">
     ${canDrag?`<button class="x h" data-h aria-label="Arrastar para reordenar" title="Arraste para reordenar">⠿</button>`:''}<button class="x v" data-open="${c.id}" aria-label="Detalhes e tela cheia" title="Detalhes">⤢</button><button class="x" data-del="${c.id}" aria-label="Remover carta" title="Remover">×</button>
     <div class="im">${c.img?`<img loading="lazy" src="${esc(c.img)}" alt="${esc(c.name)}" onerror="this.parentNode.textContent='Sem imagem'">`:'Sem imagem'}</div>
-    <b>${esc(c.name)}</b><small>${esc(c.set||'')} ${c.num?'#'+esc(c.num):''}</small>${c.owned?`<small class="meta">${esc([c.cond&&c.cond.replace(/.*\((.*)\)/,'$1'),c.ver,c.price>0&&money(c.price)].filter(Boolean).join(' · '))}</small>`:''}</div>`;
+    <b>${esc(c.name)}</b><small>${esc(c.set||'')} ${c.num?'#'+esc(c.num):''}</small>${c.owned?`<small class="meta">${esc([c.cond&&c.cond.replace(/.*\((.*)\)/,'$1'),versLabel(c),c.price>0&&money(c.price)].filter(Boolean).join(' · '))}</small>`:''}</div>`;
 }
 const isPocket=c=>!!c.pocket||/^dex:((P-)?[AB]\d+[a-z]?-|P-[AB]-)/i.test(c.key||'');
 function stats(cards){
@@ -550,6 +570,140 @@ async function enrich(name,id){
     drawRes();
   }catch(e){if(id===sid)m.textContent=m.textContent.replace(base,' Não consegui consultar a segunda base (TCGdex).')}
 }
+/* Scan por câmera: OCR gratuito (Tesseract.js) + busca por número/coleção */
+let tessP=null,tessW=null;
+function loadTess(){
+  return tessP||(tessP=new Promise((ok,no)=>{
+    if(window.Tesseract)return ok();
+    const sc=document.createElement('script');
+    sc.src='https://cdn.jsdelivr.net/npm/tesseract.js@5.1.1/dist/tesseract.min.js';
+    sc.onload=ok;sc.onerror=()=>{tessP=null;no(new Error('não consegui carregar o leitor de texto (precisa de internet)'))};
+    document.head.appendChild(sc);
+  }));
+}
+let termT=null;
+async function getWorker(){await loadTess();if(!tessW)tessW=await Tesseract.createWorker('eng');clearTimeout(termT);termT=setTimeout(()=>{if(tessW){tessW.terminate();tessW=null}},90000);return tessW}
+async function loadImg(file){const u=URL.createObjectURL(file),im=new Image();im.src=u;await im.decode();return im}
+function cropCanvas(im,y0,y1,maxW){
+  const sw=im.naturalWidth||im.width,ih=im.naturalHeight||im.height,sy=ih*y0,sh=ih*(y1-y0),k=Math.min((maxW||2200)/sw,2.5);
+  const c=document.createElement('canvas');c.width=Math.round(sw*k);c.height=Math.max(1,Math.round(sh*k));
+  const x=c.getContext('2d');x.filter='grayscale(1) contrast(1.5)';x.drawImage(im,0,sy,sw,sh,0,0,c.width,c.height);
+  return c;
+}
+const STOP=new Set(['EN','JP','PT','ES','FR','DE','IT','TCG','HP','ILLUS','NINTENDO','CREATURES','GAME','FREAK','POKEMON','ETC','THE','AND','NAME']);
+function guessName(t){
+  for(let l of String(t||'').split('\n')){
+    l=l.replace(/\b(BASIC|STAGE\s*[12]|FASE\s*[12]|B[AÁ]SICO)\b/gi,' ').split(/\bHP\b|\s\d{2,3}\s*\S?$/i)[0];
+    l=l.replace(/[^A-Za-zÀ-ÿ'’\- ]/g,' ').replace(/\s+/g,' ').trim();
+    if(l.replace(/[^A-Za-z]/g,'').length>=3)return l;
+  }
+  return '';
+}
+function parseScan(foot,head,full){
+  const U=(String(foot||'')+'\n'+String(full||'')).toUpperCase();
+  let num='',tot='',codes=[];
+  const m=U.match(/\b([A-Z]{0,4}\d{1,3})\s*[\/\\|]\s*([A-Z]{0,4}\d{2,3})\b/);
+  if(m){
+    num=m[1];tot=m[2].replace(/\D/g,'');
+    const ls=U.lastIndexOf('\n',m.index)+1,le=U.indexOf('\n',m.index),line=U.slice(ls,le<0?U.length:le),pos=m.index-ls;
+    const toks=[];let t,re=/\b[A-Z][A-Z0-9]{1,4}\b/g;
+    while((t=re.exec(line))){if(!STOP.has(t[0])&&t[0]!==m[1]&&t[0]!==m[2])toks.push({v:t[0],d:Math.abs(t.index-pos)})}
+    toks.sort((a,b)=>a.d-b.d).forEach(x=>{if(!codes.includes(x.v))codes.push(x.v)});
+  }else{
+    const p=U.match(/\b(SVP|MEP|SWSH|SM|XY|BW|HGSS|DP)\s*(?:EN\s*)?(\d{1,3})\b/);
+    if(p){if(p[1]==='SVP'||p[1]==='MEP'){num=p[2];codes=[p[1]]}else num=p[1]+p[2].padStart(3,'0')}
+  }
+  const name=guessName(head)||guessName(full);
+  return {num,tot,codes:codes.slice(0,3),name};
+}
+const numVariants=n=>/^\d+$/.test(n)?[...new Set([n,String(parseInt(n,10)),n.padStart(3,'0')])]:[n];
+function scanQueries(p){
+  const q=[];
+  if(p.num){
+    const ns=numVariants(p.num);
+    p.codes.forEach(c=>ns.forEach(n=>q.push(`set.ptcgoCode:"${c}" number:"${n}"`)));
+    if(p.tot)ns.forEach(n=>q.push(`set.printedTotal:${p.tot} number:"${n}"`));
+    if(p.name)ns.forEach(n=>q.push(`name:"${p.name}" number:"${n}"`));
+    if(/^[A-Z]+\d+$/.test(p.num)&&!p.tot)ns.forEach(n=>q.push(`number:"${n}"`));
+  }
+  if(p.name)q.push(`name:"${p.name}"`);
+  return q;
+}
+async function scanFile(file){
+  const m=$('apiMsg');m.className='msg';m.textContent='Preparando a foto…';
+  try{
+    const im=await createImageBitmap(file,{resizeWidth:2400,resizeQuality:'medium'}).catch(()=>loadImg(file));
+    await scanRun({foot:cropCanvas(im,.76,1,2000),head:cropCanvas(im,0,.16,2000),full:()=>cropCanvas(im,0,1,1600)});
+  }catch(e){m.className='msg err';m.textContent='Não consegui abrir a foto ('+e.message+').'}
+}
+async function scanRun(src){
+  const m=$('apiMsg');m.className='msg';sid++;
+  try{
+    m.textContent='Carregando o leitor de texto (na primeira vez pode levar alguns segundos)…';
+    const w=await getWorker();
+    m.textContent='Lendo a carta…';
+    await w.setParameters({tessedit_pageseg_mode:'6'});
+    const foot=(await w.recognize(src.foot)).data.text;
+    const head=(await w.recognize(src.head)).data.text;
+    let full='';
+    if(!/\d{1,3}\s*[\/\\|]\s*\d{2,3}/.test(foot)){await w.setParameters({tessedit_pageseg_mode:'11'});full=(await w.recognize(src.full())).data.text}
+    $('scanTxt').textContent=`[rodapé]\n${foot}\n[topo]\n${head}`+(full?`\n[carta inteira]\n${full}`:'');$('scanDbg').hidden=false;
+    const p=parseScan(foot,head,full);
+    if(!p.num&&!p.name){m.className='msg err';m.textContent='Não consegui ler número nem nome. Tente de novo com mais luz, sem reflexo e com a carta inteira na foto. Você também pode buscar manualmente.';return}
+    const lido=`Li: ${p.num?'nº '+p.num+(p.tot?'/'+p.tot:''):'sem número'}${p.codes.length?', código '+p.codes.join(' ou '):''}${p.name?', nome “'+p.name+'”':''}.`;
+    // preenche os campos para você poder corrigir e buscar de novo
+    if(p.num&&p.codes.length){document.querySelector('#modeSeg [data-m=set]').click();$('q').value=p.codes[0];$('qn').value=p.num}
+    else if(p.name){document.querySelector('#modeSeg [data-m=name]').click();$('q').value=p.name}
+    m.textContent=lido+' Buscando…';
+    const qs=scanQueries(p),rs=await Promise.allSettled(qs.map(q=>fetchPage(q,1)));
+    const ok=rs.find(r=>r.status==='fulfilled'&&r.value.totalCount>0);
+    results=[];picked=new Set();loaded=0;total=0;$('more').hidden=true;
+    if(!ok){$('res').innerHTML='';updateSel();m.className='msg err';m.textContent=lido+' Nenhuma carta encontrada na base. Corrija os campos abaixo e busque de novo, ou cadastre manualmente.';return}
+    results=ok.value.data.map(c=>({key:c.id,name:c.name,set:c.set.name,num:c.number,img:c.images.small,big:c.images.large,date:c.set.releaseDate,alt:c.artist||''}));
+    results.sort((a,b)=>(a.date||'').localeCompare(b.date||'')||String(a.num).localeCompare(String(b.num),undefined,{numeric:true}));
+    m.textContent=lido+` ${results.length} carta(s) encontrada(s). Selecione a correta e adicione.`;
+    drawRes();
+    if(results.length===1){picked.add(results[0].key);drawRes()}
+  }catch(e){m.className='msg err';m.textContent='Falha no scan ('+e.message+').'}
+}
+let camStream=null,camRect=null;
+function stopCam(){if(camStream){camStream.getTracks().forEach(t=>t.stop());camStream=null}$('camV').srcObject=null}
+function layoutGuide(){
+  const v=$('camV');if(!v.videoWidth)return;
+  const cw=v.clientWidth,ch=v.clientHeight,vw=v.videoWidth,vh=v.videoHeight,sc=Math.min(cw/vw,ch/vh),ox=(cw-vw*sc)/2,oy=(ch-vh*sc)/2;
+  let gh=vh*.9,gw=gh*63/88;if(gw>vw*.94){gw=vw*.94;gh=gw*88/63}
+  const gx=(vw-gw)/2,gy=(vh-gh)/2,g=$('camG').style;
+  camRect={x:gx,y:gy,w:gw,h:gh};
+  g.left=ox+gx*sc+'px';g.top=oy+gy*sc+'px';g.width=gw*sc+'px';g.height=gh*sc+'px';
+}
+async function openCam(){
+  const m=$('apiMsg');
+  if(!navigator.mediaDevices||!navigator.mediaDevices.getUserMedia){m.className='msg err';m.textContent='Este navegador não abre a câmera aqui. Use o botão “Usar foto”.';return}
+  try{camStream=await navigator.mediaDevices.getUserMedia({video:{facingMode:{ideal:'environment'},width:{ideal:4096},height:{ideal:4096}},audio:false})}
+  catch(e){m.className='msg err';m.textContent='Não consegui abrir a câmera ('+(e.name||e.message)+'). Permita o uso da câmera ou use o botão “Usar foto”.';return}
+  const v=$('camV');v.srcObject=camStream;$('cam').showModal();
+  try{await v.play()}catch(e){}
+  layoutGuide();
+}
+$('camV').addEventListener('loadedmetadata',layoutGuide);
+window.addEventListener('resize',()=>{if($('cam').open)layoutGuide()});
+$('cam').addEventListener('close',stopCam);
+$('camCancel').onclick=()=>$('cam').close();
+$('camShot').onclick=()=>{
+  const v=$('camV'),r=camRect;if(!r||!v.videoWidth)return;
+  const strip=(y0,y1,maxW)=>{
+    const sh=r.h*(y1-y0),k=Math.min(maxW/r.w,2.5),c=document.createElement('canvas');
+    c.width=Math.round(r.w*k);c.height=Math.max(1,Math.round(sh*k));
+    const x=c.getContext('2d');x.filter='grayscale(1) contrast(1.5)';x.drawImage(v,r.x,r.y+r.h*y0,r.w,sh,0,0,c.width,c.height);return c;
+  };
+  const foot=strip(.78,1,2000),head=strip(0,.14,2000),full=strip(0,1,1600);   // recortes feitos antes de fechar a câmera
+  $('cam').close();
+  scanRun({foot,head,full:()=>full});
+};
+$('scanBtn').onclick=openCam;
+$('scanPick').onclick=()=>$('scanFile').click();
+$('scanFile').onchange=e=>{const f=e.target.files[0];e.target.value='';if(f)scanFile(f)};
+
 function updateSel(){const n=picked.size;$('addSel').disabled=!n;$('addSel').textContent=n?`Adicionar (${n})`:'Adicionar selecionadas'}
 function drawRes(){
   const ph=results.filter(c=>!isPocket(c)),po=results.filter(isPocket);
@@ -587,9 +741,24 @@ $('mAdd').onclick=async()=>{
 
 /* Detalhes e tela cheia */
 const CONDS=['','Mint (M)','Near Mint (NM)','Lightly Played (LP)','Moderately Played (MP)','Heavily Played (HP)','Danificada (DMG)','Gradada (PSA/BGS/CGC)'];
-const VERS=['','Normal','Holo','Reverse Holo','Full Art','Alternate Art','Promo','Primeira edição','Outra'];
+const VERS=['Normal','Holo','Reverse Holo','Full Art','Alternate Art','Promo','Primeira edição','Outra'];
+const versOf=c=>c.vers||(c.ver?{[c.ver]:1}:{});
+const versLabel=c=>Object.entries(versOf(c)).map(([n,q])=>q>1?`${n} ×${q}`:n).join(', ');
+function renderVers(v){
+  const names=[...VERS,...Object.keys(v).filter(k=>!VERS.includes(k))];
+  $('dVers').innerHTML=names.map(n=>{const on=n in v;return `<div class="vrow"><label><input type="checkbox" data-vn="${esc(n)}" ${on?'checked':''}> ${esc(n)}</label><input type="number" min="1" step="1" inputmode="numeric" data-vq="${esc(n)}" value="${v[n]||1}" aria-label="Quantidade de ${esc(n)}" ${on?'':'hidden'}></div>`}).join('')+'<div class="msg" id="dVTot"></div>';
+  updVTot();
+}
+function readVers(){
+  const vs={};
+  $('dVers').querySelectorAll('input[data-vn]:checked').forEach(i=>{
+    const q=$('dVers').querySelector(`input[data-vq="${CSS.escape(i.dataset.vn)}"]`);
+    vs[i.dataset.vn]=Math.max(1,parseInt(q.value,10)||1);
+  });
+  return vs;
+}
+function updVTot(){const n=Object.values(readVers()).reduce((a,b)=>a+b,0);$('dVTot').textContent=n?`Total: ${n} carta${n>1?'s':''}`:''}
 $('dCond').innerHTML=CONDS.map(v=>`<option value="${v}">${v||'Não informada'}</option>`).join('');
-$('dVer').innerHTML=VERS.map(v=>`<option value="${v}">${v||'Não informada'}</option>`).join('');
 const money=v=>Number(v).toLocaleString('pt-BR',{style:'currency',currency:'BRL'});
 const big=c=>c.big||(c.img&&/images\.pokemontcg\.io/.test(c.img)?c.img.replace(/\.png$/,'_hires.png'):c.img);
 function visible(s){
@@ -608,19 +777,24 @@ function openDet(id){
   dId=id;const c=dCard();$('dPhys').hidden=isPocket(c);
   $('dName').textContent=c.name;$('dSub').textContent=`${c.set||''} ${c.num?'#'+c.num:''}`;
   $('dImg').src=c.img||'';$('dOwn').checked=!!c.owned;
-  $('dCond').value=c.cond||'';$('dVer').value=c.ver||'';
+  $('dCond').value=c.cond||'';renderVers(versOf(c));
   $('dPrice').value=c.price>0?c.price:'';$('dUrl').value=c.img||'';
   $('det').showModal();
 }
 function upd(){
   const c=dCard();if(!c)return;
-  c.owned=$('dOwn').checked;c.cond=$('dCond').value;c.ver=$('dVer').value;
+  c.owned=$('dOwn').checked;c.cond=$('dCond').value;c.vers=readVers();delete c.ver;
   c.price=$('dPrice').value===''?'':parseFloat($('dPrice').value);
   const u=$('dUrl').value.trim();
   if(u!==(c.img||'')){c.img=u;c.big='';$('dImg').src=u}
   save();render();
 }
-['dOwn','dCond','dVer','dPrice','dUrl'].forEach(i=>$(i).addEventListener('change',upd));
+['dOwn','dCond','dPrice','dUrl'].forEach(i=>$(i).addEventListener('change',upd));
+$('dVers').addEventListener('change',e=>{
+  const n=e.target.dataset.vn;
+  if(n){const q=$('dVers').querySelector(`input[data-vq="${CSS.escape(n)}"]`);q.hidden=!e.target.checked;if(e.target.checked){$('dOwn').checked=true;if(!(parseInt(q.value,10)>0))q.value=1}}
+  updVTot();upd();
+});
 $('dClose').onclick=()=>$('det').close();
 function showLb(){
   const c=lbList[lbI],im=$('lbImg');
