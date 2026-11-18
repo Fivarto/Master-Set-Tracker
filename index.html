@@ -132,6 +132,7 @@ dialog#cam[open]{display:block}
 .icons{display:flex;flex-wrap:wrap;gap:6px;margin:6px 0}
 .icons .ico{min-height:0;width:42px;height:42px;padding:0;font-size:22px;line-height:1}
 .icons .ico.on{border-color:var(--acc);box-shadow:inset 0 0 0 1px var(--acc)}
+.lnk{position:absolute;left:6px;bottom:6px;z-index:1;width:22px;height:22px;border-radius:50%;background:rgba(12,14,18,.82);font-size:12px;line-height:22px;text-align:center}
 .sech{grid-column:1/-1;margin:12px 0 0;font:bold 15px/1.3 var(--serif);color:var(--acc)}
 .sech:first-child{margin-top:0}
 #lb{position:fixed;inset:0;background:#000;z-index:50;display:flex;align-items:center;justify-content:center}
@@ -155,6 +156,7 @@ dialog#cam[open]{display:block}
       <button id="mvCur">Mover set atual para pasta</button>
       <button id="edCur">Editar set atual (nome e ícone)</button>
       <button id="edCurF">Editar pasta do set atual</button>
+      <button id="syBtn">Sincronizar cartas iguais…</button>
       <button id="orgBtn">Organizar pastas e sets</button>
       <button id="delSet">Excluir set atual</button>
       <button id="expBtn">Exportar backup</button>
@@ -212,6 +214,13 @@ dialog#cam[open]{display:block}
   <div id="camG"></div>
   <div id="camHint">Encaixe a carta no quadro, com o rodapé (número) bem visível</div>
   <div id="camBar"><button id="camCancel">Cancelar</button><button class="p" id="camShot">Capturar</button></div>
+</dialog>
+<dialog id="syDlg">
+  <div class="dhead"><h2>Sincronizar cartas iguais</h2><button class="ic" id="syClose" aria-label="Fechar">×</button></div>
+  <div class="msg">Quando a mesma carta está em mais de um set, marcar “Já tenho” (e editar versões, quantidade, condição e preço) em um deles atualiza os outros.</div>
+  <label class="sw"><input type="checkbox" id="syOn"><span>Manter cartas iguais sincronizadas</span></label>
+  <div class="msg" id="syInfo"></div>
+  <div class="dfoot"><span class="sp"></span><button class="p" id="syNow">Sincronizar agora</button></div>
 </dialog>
 <dialog id="edDlg">
   <div class="dhead"><h2 id="edTitle">Editar</h2><button class="ic" id="edClose" aria-label="Fechar">×</button></div>
@@ -278,10 +287,52 @@ const cur=()=>S.sets.find(s=>s.id===S.cur);
 const uid=()=>Math.random().toString(36).slice(2,10);
 const esc=t=>String(t==null?'':t).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 
+let dupIdx=new Map();
+const idOf=c=>{const n=parseInt(c.num,10);return c.set?`${norm(c.set)}|${isNaN(n)?norm(c.num):n}|${norm(c.name)}`:'k:'+(c.key||c.id)};
+function buildDup(){
+  const m=new Map();dupIdx=new Map();
+  S.sets.forEach(x=>x.cards.forEach(c=>{const k=idOf(c),a=m.get(k)||[];a.push(x.name);m.set(k,a)}));
+  m.forEach((a,k)=>{const u=[...new Set(a)];if(u.length>1)dupIdx.set(k,u)});
+}
+function twins(c){
+  const id=idOf(c),out=[];
+  S.sets.forEach(x=>x.cards.forEach(y=>{if(y!==c&&((y.key&&y.key===c.key)||idOf(y)===id))out.push(y)}));
+  return out;
+}
+function propagate(c,all){
+  if(S.sync===false)return;
+  twins(c).forEach(y=>{y.owned=c.owned;if(all){y.cond=c.cond;y.vers={...versOf(c)};delete y.ver;y.price=c.price}});
+}
+function adopt(c){
+  if(S.sync===false)return;
+  const t=twins(c).find(y=>y.owned);if(!t)return;
+  c.owned=true;c.cond=t.cond;c.vers={...versOf(t)};delete c.ver;c.price=t.price;
+}
+function syncGroups(){
+  const g=new Map();
+  S.sets.forEach(x=>x.cards.forEach(c=>{const k=idOf(c);if(!g.has(k))g.set(k,[]);g.get(k).push({c,s:x.id})}));
+  return [...g.values()].filter(l=>new Set(l.map(e=>e.s)).size>1).map(l=>l.map(e=>e.c));
+}
+function syncAll(){
+  let n=0;
+  syncGroups().forEach(l=>{
+    const has=c=>Object.keys(versOf(c)).length||c.price>0||c.cond;
+    const src=l.find(c=>c.owned&&has(c))||l.find(c=>c.owned);if(!src)return;
+    l.forEach(c=>{
+      if(c===src)return;let ch=false;
+      if(!c.owned){c.owned=true;ch=true}
+      if(!c.cond&&src.cond){c.cond=src.cond;ch=true}
+      if(!Object.keys(versOf(c)).length&&Object.keys(versOf(src)).length){c.vers={...versOf(src)};delete c.ver;ch=true}
+      if(!(c.price>0)&&src.price>0){c.price=src.price;ch=true}
+      if(ch)n++;
+    });
+  });
+  return n;
+}
 function cardHtml(c,canDrag){
   return `<div class="card ${c.owned?'own':''}" tabindex="0" role="button" aria-pressed="${!!c.owned}" data-id="${c.id}">
     ${canDrag?`<button class="x h" data-h aria-label="Arrastar para reordenar" title="Arraste para reordenar">⠿</button>`:''}<button class="x v" data-open="${c.id}" aria-label="Detalhes e tela cheia" title="Detalhes">⤢</button><button class="x" data-del="${c.id}" aria-label="Remover carta" title="Remover">×</button>
-    <div class="im">${c.img?`<img loading="lazy" src="${esc(c.img)}" alt="${esc(c.name)}" onerror="this.parentNode.textContent='Sem imagem'">`:'Sem imagem'}</div>
+    <div class="im">${c.img?`<img loading="lazy" src="${esc(c.img)}" alt="${esc(c.name)}" onerror="this.parentNode.textContent='Sem imagem'">`:'Sem imagem'}${dupIdx.get(idOf(c))?`<span class="lnk" title="Presente nos sets: ${esc(dupIdx.get(idOf(c)).join(', '))}">🔗</span>`:''}</div>
     <b>${esc(c.name)}</b><small>${esc(c.set||'')} ${c.num?'#'+esc(c.num):''}</small>${c.owned?`<small class="meta">${esc([c.cond&&c.cond.replace(/.*\((.*)\)/,'$1'),versLabel(c),c.price>0&&money(c.price)].filter(Boolean).join(' · '))}</small>`:''}</div>`;
 }
 const isPocket=c=>!!c.pocket||/^dex:((P-)?[AB]\d+[a-z]?-|P-[AB]-)/i.test(c.key||'');
@@ -312,6 +363,7 @@ function setBoxHtml(x,canDrag){
     <div class="grid" ${open?'':'hidden'}>${open?(list.length?gridHtml(list,canDrag):`<div class="empty">${st.all?'Nenhuma carta neste filtro.':'Nenhuma carta ainda. Clique em “+ Cartas”.'}</div>`):''}</div></section>`;
 }
 function render(){
+  buildDup();
   const multi=S.view==='multi';syncSeg();$('crumb').textContent='';
   $('viewSel').value=multi?'multi':'one';
   $('setSel').hidden=multi;$('delSet').hidden=multi;$('mvCur').hidden=multi||!S.sets.length;$('edCur').hidden=multi||!S.sets.length;$('edCurF').hidden=multi||!(cur()&&S.folders.some(f=>f.id===cur().folder));$('expAll').hidden=!multi;$('colAll').hidden=!multi;
@@ -369,7 +421,7 @@ $('area').addEventListener('click',e=>{
   const d=e.target.closest('[data-del]');
   if(d){const r=findCard(d.dataset.del);if(r&&confirm('Remover esta carta do set?')){r.s.cards=r.s.cards.filter(c=>c!==r.c);save();render()}return}
   const el=e.target.closest('.card');if(!el)return;
-  const r=findCard(el.dataset.id);if(r){r.c.owned=!r.c.owned;save();render()}
+  const r=findCard(el.dataset.id);if(r){r.c.owned=!r.c.owned;propagate(r.c,false);save();render()}
 });
 $('area').addEventListener('keydown',e=>{if((e.key==='Enter'||e.key===' ')&&e.target.classList.contains('card')){e.preventDefault();e.target.click()}});
 $('viewSel').onchange=e=>{S.view=e.target.value;save();render()};
@@ -399,6 +451,10 @@ $('newSet').onclick=()=>openNewSet();$('newFolder').onclick=newFolder;
 $('nsOk').onclick=createSet;$('nsClose').onclick=()=>$('nsDlg').close();
 $('nsName').onkeydown=e=>{if(e.key==='Enter')createSet()};
 const ICONS=['📁','📂','🗂️','⭐','🏆','💎','🎨','✏️','🖌️','🎴','📚','🔥','❄️','⚡','🌿','🐉','🌙','☀️','❤️','🎮','👑','🦋'];
+$('syBtn').onclick=()=>{$('syOn').checked=S.sync!==false;$('syInfo').textContent=`${syncGroups().length} carta(s) aparecem em mais de um set.`;$('syDlg').showModal()};
+$('syOn').onchange=e=>{S.sync=e.target.checked;save()};
+$('syNow').onclick=()=>{const n=syncAll();save();render();$('syInfo').textContent=`${n} carta(s) atualizada(s). ${syncGroups().length} carta(s) aparecem em mais de um set.`};
+$('syClose').onclick=()=>$('syDlg').close();
 let ed=null;
 const edItem=()=>ed&&(ed.kind==='folder'?S.folders.find(f=>f.id===ed.id):S.sets.find(x=>x.id===ed.id));
 function markIcon(){const v=$('edIcon').value.trim();document.querySelectorAll('#edIcons .ico').forEach(b=>b.classList.toggle('on',b.dataset.ic===v))}
@@ -797,7 +853,7 @@ $('more').onclick=()=>search(true);
 $('selAll').onclick=()=>{const ks=results.filter(c=>!inSet(c)).map(c=>c.key),all=ks.length&&ks.every(k=>picked.has(k));picked=new Set(all?[]:ks);drawRes()};
 $('addSel').onclick=()=>{
   const s=cur();let n=0;
-  results.filter(c=>picked.has(c.key)&&!inSet(c)).forEach(c=>{s.cards.push({id:uid(),key:c.key,name:c.name,set:c.set,num:c.num,img:c.img,big:c.big,date:c.date,pocket:isPocket(c),avail:c.avail,availSrc:c.availSrc,owned:false});n++});
+  results.filter(c=>picked.has(c.key)&&!inSet(c)).forEach(c=>{const nc={id:uid(),key:c.key,name:c.name,set:c.set,num:c.num,img:c.img,big:c.big,date:c.date,pocket:isPocket(c),avail:c.avail,availSrc:c.availSrc,owned:false};s.cards.push(nc);adopt(nc);n++});
   save();render();picked=new Set();drawRes();$('apiMsg').textContent=`${n} carta(s) adicionada(s).`;
 };
 
@@ -899,7 +955,7 @@ function upd(){
   c.price=$('dPrice').value===''?'':parseFloat($('dPrice').value);
   const u=$('dUrl').value.trim();
   if(u!==(c.img||'')){c.img=u;c.big='';$('dImg').src=u}
-  save();render();
+  propagate(c,true);save();render();
 }
 ['dOwn','dCond','dPrice','dUrl'].forEach(i=>$(i).addEventListener('change',upd));
 $('dVers').addEventListener('change',e=>{
