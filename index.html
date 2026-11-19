@@ -133,6 +133,7 @@ dialog#cam[open]{display:block}
 .icons .ico{min-height:0;width:42px;height:42px;padding:0;font-size:22px;line-height:1}
 .icons .ico.on{border-color:var(--acc);box-shadow:inset 0 0 0 1px var(--acc)}
 .lnk{position:absolute;left:6px;bottom:6px;z-index:1;width:22px;height:22px;border-radius:50%;background:rgba(12,14,18,.82);font-size:12px;line-height:22px;text-align:center}
+#cardQ{flex:1;min-width:180px}
 .sech{grid-column:1/-1;margin:12px 0 0;font:bold 15px/1.3 var(--serif);color:var(--acc)}
 .sech:first-child{margin-top:0}
 #lb{position:fixed;inset:0;background:#000;z-index:50;display:flex;align-items:center;justify-content:center}
@@ -177,6 +178,7 @@ dialog#cam[open]{display:block}
     <div class="seg" id="filterSeg" role="group" aria-label="Filtro"><button data-f="all">Todas</button><button data-f="miss">Faltando</button><button data-f="own">Já tenho</button></div>
     <select id="filter" hidden><option value="all"></option><option value="miss"></option><option value="own"></option></select>
     <select id="sort" aria-label="Ordenação"><option value="date">Ordem: lançamento</option><option value="az">Ordem: A–Z</option><option value="za">Ordem: Z–A</option><option value="manual">Ordem: manual (arrastar)</option></select>
+    <input id="cardQ" type="search" placeholder="🔍 Buscar nas minhas cartas" aria-label="Buscar nas cartas já adicionadas" autocomplete="off"><button id="qAll" hidden></button>
     <span class="msg" id="hint"></span>
   </div>
   <div id="area"><div class="grid" id="grid"></div><div id="multi"></div></div>
@@ -354,46 +356,50 @@ function setOptions(sel){
   return S.folders.map(f=>{const ss=S.sets.filter(x=>x.folder===f.id);return ss.length?`<optgroup label="${esc(fIcon(f))} ${esc(f.name)}">${ss.map(o).join('')}</optgroup>`:''}).join('')+rootSets().map(o).join('');
 }
 function setBoxHtml(x,canDrag){
-  const st=stats(x.cards),open=!!x.open,list=open?visible(x):[];
+  const st=stats(x.cards),open=!!x.open||!!Q(),list=open?visible(x):[];
   return `<section class="setbox" data-sid="${x.id}"><div class="sethead">
     <button class="tog" data-tog="${x.id}" aria-expanded="${open}"><span class="chev">${open?'▾':'▸'}</span>${esc(sName(x))}</button>
     <span class="sinfo">${st.own}/${st.tot} (${Math.round(st.pct)}%)${st.pt?` · Pocket ${st.po}/${st.pt}`:''}${st.spent?' · '+money(st.spent):''}</span>
     <div class="track"><div class="fill" style="width:${st.pct}%"></div></div>
     <button data-add="${x.id}">+ Cartas</button><button data-sedit="${x.id}" title="Editar nome e ícone" aria-label="Editar nome e ícone">✎</button><button data-mv="${x.id}" title="Mover para outra pasta" aria-label="Mover para outra pasta">📁 Mover</button><button data-dels="${x.id}" aria-label="Excluir set" title="Excluir set">×</button></div>
-    <div class="grid" ${open?'':'hidden'}>${open?(list.length?gridHtml(list,canDrag):`<div class="empty">${st.all?'Nenhuma carta neste filtro.':'Nenhuma carta ainda. Clique em “+ Cartas”.'}</div>`):''}</div></section>`;
+    <div class="grid" ${open?'':'hidden'}>${open?(list.length?gridHtml(list,canDrag):`<div class="empty">${Q()?'Nenhuma carta encontrada com essa busca.':st.all?'Nenhuma carta neste filtro.':'Nenhuma carta ainda. Clique em “+ Cartas”.'}</div>`):''}</div></section>`;
 }
 function render(){
-  buildDup();
+  buildDup();$('qAll').hidden=true;
   const multi=S.view==='multi';syncSeg();$('crumb').textContent='';
   $('viewSel').value=multi?'multi':'one';
   $('setSel').hidden=multi;$('delSet').hidden=multi;$('mvCur').hidden=multi||!S.sets.length;$('edCur').hidden=multi||!S.sets.length;$('edCurF').hidden=multi||!(cur()&&S.folders.some(f=>f.id===cur().folder));$('expAll').hidden=!multi;$('colAll').hidden=!multi;
   $('setSel').innerHTML=setOptions(S.cur)||'<option>Nenhum set</option>';
   const g=$('grid'),m=$('multi');g.hidden=multi;m.hidden=!multi;
-  const f=$('filter').value,canDrag=$('sort').value==='manual'&&f==='all';
-  $('hint').textContent=$('sort').value==='manual'?(canDrag?'Arraste pelo botão ⠿ para reordenar.':'Para reordenar, use o filtro "Todas".'):'';
+  const f=$('filter').value,canDrag=$('sort').value==='manual'&&f==='all'&&!Q();
+  $('hint').textContent=$('sort').value==='manual'?(canDrag?'Arraste pelo botão ⠿ para reordenar.':'Para reordenar, use o filtro "Todas" e limpe a busca.'):'';
   if(!S.sets.length&&(!multi||!S.folders.length)){(multi?m:g).innerHTML='<div class="empty">Seu fichário está vazio.<br>Crie um master set, por exemplo com o nome de um ilustrador.<br><button class="p" data-newset>Criar master set</button></div>';$('progTxt').textContent='';$('fill').style.width='0';return}
   if(multi){
     const t=stats(S.sets.flatMap(x=>x.cards));
     $('progTxt').textContent=`${t.own} de ${t.tot} cartas em ${S.sets.length} sets (${Math.round(t.pct)}%)`+(t.pt?` · TCG Pocket: ${t.po} de ${t.pt}`:'')+(t.spent?` · Investido: ${money(t.spent)}`:'');
     $('fill').style.width=t.pct+'%';
     const fs=S.folders.map(f=>{
-      const ss=S.sets.filter(x=>x.folder===f.id),st=stats(ss.flatMap(x=>x.cards)),open=f.open!==false;
+      const ss=S.sets.filter(x=>x.folder===f.id),st=stats(ss.flatMap(x=>x.cards)),open=f.open!==false||!!Q(),sv=Q()?ss.filter(x=>visible(x).length):ss;
+      if(Q()&&!sv.length)return '';
       return `<section class="folderbox"><div class="sethead">
         <button class="tog" data-ftog="${f.id}" aria-expanded="${open}"><span class="chev">${open?'▾':'▸'}</span>${esc(fIcon(f))} ${esc(f.name)}</button>
         <span class="sinfo">${ss.length} sets · ${st.own}/${st.tot}${st.pt?` · Pocket ${st.po}/${st.pt}`:''}</span>
         <div class="track"><div class="fill" style="width:${st.pct}%"></div></div>
         <button data-fedit="${f.id}" title="Editar nome e ícone" aria-label="Editar nome e ícone">✎</button><button data-fadd="${f.id}">+ Set</button><button data-fexist="${f.id}">+ Existente</button></div>
-        <div class="fbody" ${open?'':'hidden'}>${open?(ss.length?ss.map(x=>setBoxHtml(x,canDrag)).join(''):'<div class="empty">Pasta vazia. Clique em “+ Set”.</div>'):''}</div></section>`;
+        <div class="fbody" ${open?'':'hidden'}>${open?(sv.length?sv.map(x=>setBoxHtml(x,canDrag)).join(''):'<div class="empty">Pasta vazia. Clique em “+ Set”.</div>'):''}</div></section>`;
     }).join('');
-    const rt=rootSets();
-    m.innerHTML=fs+(rt.length?(S.folders.length?'<h3 class="sech">Sem pasta</h3>':'')+rt.map(x=>setBoxHtml(x,canDrag)).join(''):'');
+    const rt=rootSets().filter(x=>!Q()||visible(x).length);
+    const out=fs+(rt.length?(S.folders.length?'<h3 class="sech">Sem pasta</h3>':'')+rt.map(x=>setBoxHtml(x,canDrag)).join(''):'');
+    m.innerHTML=out||(Q()?'<div class="empty">Nenhuma carta encontrada com essa busca.</div>':'');
     return;
   }
   const x=cur(),st=stats(x.cards),list=visible(x),fo=S.folders.find(y=>y.id===x.folder);
+  const oth=Q()?S.sets.filter(y=>y!==x).reduce((n,y)=>n+visible(y).length,0):0;
+  $('qAll').hidden=!oth;$('qAll').textContent=`${oth} em outros sets · Ver todos`;
   $('crumb').textContent=fo?`${fIcon(fo)} ${fo.name} › ${sName(x)}`:sName(x);
   $('progTxt').textContent=`${st.own} de ${st.tot} cartas (${Math.round(st.pct)}%)`+(st.pt?` · TCG Pocket: ${st.po} de ${st.pt}`:'')+(st.spent?` · Investido: ${money(st.spent)}`:'');
   $('fill').style.width=st.pct+'%';
-  g.innerHTML=list.length?gridHtml(list,canDrag):`<div class="empty">${st.all?'Nenhuma carta neste filtro.':'Nenhuma carta ainda. Clique em “Adicionar cartas”.'}</div>`;
+  g.innerHTML=list.length?gridHtml(list,canDrag):`<div class="empty">${Q()?'Nenhuma carta encontrada com essa busca.':st.all?'Nenhuma carta neste filtro.':'Nenhuma carta ainda. Clique em “Adicionar cartas”.'}</div>`;
 }
 
 $('area').addEventListener('click',e=>{
@@ -932,7 +938,7 @@ const big=c=>c.big||(c.img&&/images\.pokemontcg\.io/.test(c.img)?c.img.replace(/
 function visible(s){
   const f=$('filter').value,o=$('sort').value;s=s||cur();
   if(!s)return [];
-  const l=s.cards.filter(c=>f==='all'||(f==='own')===!!c.owned);
+  const l=s.cards.filter(c=>(f==='all'||(f==='own')===!!c.owned)&&matchCard(c,s));
   const tie=(a,b)=>(a.date||'').localeCompare(b.date||'')||String(a.num).localeCompare(String(b.num),undefined,{numeric:true});
   const nm=(a,b)=>a.name.localeCompare(b.name,'pt-BR',{sensitivity:'base'})||tie(a,b);
   const dt=(a,b)=>(a.date||'9999').localeCompare(b.date||'9999')||String(a.num).localeCompare(String(b.num),undefined,{numeric:true});
@@ -1028,6 +1034,19 @@ function endDrag(ok){
 }
 window.addEventListener('pointerup',()=>endDrag(true));
 window.addEventListener('pointercancel',()=>endDrag(false));
+
+/* Busca nas cartas já adicionadas */
+function Q(){const e=$('cardQ');return e?e.value.trim():''}
+function matchCard(c,s){
+  const qs=norm(Q()).split(' ').filter(Boolean);if(!qs.length)return true;
+  const fo=S.folders.find(f=>f.id===s.folder);
+  const words=norm([c.name,c.set,c.num,c.cond,versLabel(c),s.name,fo&&fo.name].join(' ')).split(' ');
+  return qs.every(t=>/^\d+$/.test(t)?words.some(w=>w===t||(/^\d+$/.test(w)&&parseInt(w,10)===parseInt(t,10))):words.some(w=>w.startsWith(t)));
+}
+let qT=null;
+$('cardQ').addEventListener('input',()=>{clearTimeout(qT);qT=setTimeout(render,120)});
+$('cardQ').addEventListener('keydown',e=>{if(e.key==='Escape'){$('cardQ').value='';render()}});
+$('qAll').onclick=()=>{S.view='multi';save();render()};
 
 /* Menu, controles segmentados */
 function syncSeg(){
