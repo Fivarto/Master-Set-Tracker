@@ -1,4 +1,4 @@
-const VERSION='v22';
+const VERSION='v23';
 const SHELL='shell-'+VERSION, IMGS='imgs-v1';
 const FILES=[
   './','index.html','styles.css','manifest.json',
