@@ -108,7 +108,10 @@ function render(){
   $('viewSel').value=multi?'multi':'one';
   $('setSel').hidden=multi;$('delSet').hidden=multi;$('mvCur').hidden=multi||!S.sets.length;$('edCur').hidden=multi||!S.sets.length;$('edCurF').hidden=multi||!(cur()&&S.folders.some(f=>f.id===cur().folder));$('expAll').hidden=!multi;$('colAll').hidden=!multi;
   $('setSel').innerHTML=setOptions(S.cur)||'<option>Nenhum set</option>';
-  const g=$('grid'),m=$('multi');g.hidden=multi;m.hidden=!multi;
+  const g=$('grid'),m=$('multi');
+  g.hidden=multi;
+  m.hidden=!multi;
+  g.classList.toggle('binder-single', !multi && isBinder());
   const canDrag=$('sort').value==='manual'&&$('filter').value==='all'&&!Q();
   $('hint').textContent=$('sort').value==='manual'?(canDrag?(isBinder()?'Arraste pelo ⠿ para qualquer slot vazio, outra carta ou botão de página.':'Arraste pelo botão ⠿ para reordenar.'):'Para organizar manualmente, use o filtro "Todas" e limpe a busca.'):'';
   if(!S.sets.length&&(!multi||!S.folders.length)){(multi?m:g).innerHTML='<div class="empty">Seu fichário está vazio.<br>Crie um master set, por exemplo com o nome de um ilustrador.<br><button class="p" data-newset>Criar master set</button></div>';$('progTxt').textContent='';$('fill').style.width='0';return}
